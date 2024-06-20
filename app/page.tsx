@@ -27,7 +27,7 @@ const api = new GhostContentAPI({
 });
 
 // Fetch data from the Ghost API server-side
-export async function getData() {
+async function getData() {
   return await api.posts
     .browse({
       limit: "5",
@@ -38,7 +38,7 @@ export async function getData() {
     });
 }
 
-export async function getAuthorData() {
+async function getAuthorData() {
   return await api.authors
     .read({
       id: "1",

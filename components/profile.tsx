@@ -163,7 +163,7 @@ const ProfileComponent = ({ posts, author, create }: any) => {
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             <h2 className="text-2xl font-bold mb-4">Updates from my blog</h2>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {posts.map((post) => (
+              {posts.map((post: any) => (
                 <li key={post.id} className="dark:bg-slate-800 p-4 rounded-lg">
                   <Link href={post.url}>
                     <div className="relative w-full">
