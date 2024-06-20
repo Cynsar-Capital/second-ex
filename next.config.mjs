@@ -12,9 +12,6 @@ const nextConfig = {
       },
     ],
   },
-  env: {
-    GHOST_URL: string,
-  },
 };
 
 export default nextConfig;
