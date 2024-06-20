@@ -7,7 +7,7 @@ import { create } from "./actions/email";
 // Initialize the Ghost Content API client
 const api = new GhostContentAPI({
   url: process.env.GHOST_URL as string,
-  key: process.env.GHOST_URL as string,
+  key: process.env.GHOST_KEY as string,
   makeRequest: async ({ url, method, params, headers }) => {
     const apiUrl = new URL(url);
 
