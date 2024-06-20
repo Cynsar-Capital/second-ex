@@ -1,9 +1,8 @@
 // components/ProfileComponent.js
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
-import { EnvelopeIcon, PhoneIcon } from "@heroicons/react/20/solid";
+
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Terminal } from "lucide-react";
 import Link from "next/link";
@@ -99,7 +98,7 @@ const ProfileComponent = ({ posts, author, create }: any) => {
             and thats fine too, because of them many things are bad but thats
             fine too,I have created a personal page that is self hosted no more
             Linkedin sending me stuff who viewed my profile 100 times. This is
-            my link where you will find almost everything that you'd expect on
+            my link where you will find almost everything that you expect on
             Linkedin{" "}
           </AlertDescription>
         </Alert>
