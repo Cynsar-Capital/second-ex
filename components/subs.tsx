@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function SubscribeDrawer({ create }) {
+export function SubscribeDrawer({ create }: any) {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
 

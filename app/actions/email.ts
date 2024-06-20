@@ -2,7 +2,7 @@
 
 import { TSGhostAdminAPI } from "@ts-ghost/admin-api";
 
-export async function create(email) {
+export async function create(email: any) {
   // ...
   //
   console.log(FormData);

@@ -79,16 +79,7 @@ const profile = {
   ],
 };
 
-const ProfileComponent = ({ posts, author, create }) => {
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-  console.log(author);
-  const handleSubscribe = async () => {
-    // Replace with your Ghost subscribe logic
-    console.log("Subscribed with:", email);
-    setSubscribed(true);
-  };
-
+const ProfileComponent = ({ posts, author, create }: any) => {
   return (
     <div className="relative min-h-screen dark:bg-slate-800 bg-gray-50 py-6 sm:py-12 text-black dark:text-white flex justify-center overflow-hidden">
       <Image
