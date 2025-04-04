@@ -1,56 +1,30 @@
-// pages/profile.js
+// app/page.tsx - Home page using App Router
+import { redirect } from 'next/navigation';
+import { createServerSupabaseClient } from '@/supabase/server';
 import ProfileComponent from "@/components/profile";
-import GhostContentAPI from "@tryghost/content-api";
-
 import { create } from "./actions/email";
 
-// Initialize the Ghost Content API client
-const api = new GhostContentAPI({
-  url: process.env.GHOST_URL as string,
-  key: process.env.GHOST_KEY as string,
-  makeRequest: async ({ url, method, params, headers }) => {
-    const apiUrl = new URL(url);
-
-    Object.keys(params).map((key) =>
-      apiUrl.searchParams.set(key, encodeURIComponent(params[key])),
-    );
-
-    try {
-      const response = await fetch(apiUrl.toString(), { method, headers });
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      console.error(error);
+export default async function HomePage() {
+  const supabase = createServerSupabaseClient();
+  
+  // Get the current user's session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  // If user is logged in, try to get their profile
+  if (session) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+    
+    if (profile) {
+      // If they have a profile, show it
+      return <ProfileComponent profile={profile} create={create} />;
     }
-  },
-  version: "v5.0",
-});
-
-// Fetch data from the Ghost API server-side
-async function getData() {
-  return await api.posts
-    .browse({
-      limit: "5",
-      include: ["authors", "tags"],
-    })
-    .catch((err) => {
-      console.error(err);
-    });
-}
-
-async function getAuthorData() {
-  return await api.authors
-    .read({
-      id: "1",
-    })
-    .catch((err) => {
-      console.error(err);
-    });
-}
-
-export default async function Profile() {
-  const posts = await getData();
-  const author = await getAuthorData();
-
-  return <ProfileComponent posts={posts} author={author} create={create} />;
+  }
+  
+  // If no user is logged in or they don't have a profile yet,
+  // just render the profile component with default values
+  return <ProfileComponent create={create} />;
 }

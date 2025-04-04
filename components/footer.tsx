@@ -1,54 +1,59 @@
 // components/Footer.js
 import Link from "next/link";
+import { Container, Text, Heading } from "@medusajs/ui";
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-800 text-white py-8">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-wrap justify-between">
-          <div className="w-full sm:w-1/2 lg:w-1/3 mb-6 sm:mb-0">
-            <h5 className="font-bold mb-2">About Me</h5>
-            <p className="text-sm text-gray-400">
-              I am definitely commited to bring a change.
-            </p>
-          </div>
-          <div className="w-full sm:w-1/2 lg:w-1/3 mb-6 sm:mb-0">
-            <h5 className="font-bold mb-2">Contact</h5>
-            <ul className="text-sm text-gray-400">
-              <li className="mb-2">
-                <Link href="mailto:saransh@cynsar.capital">
-                  saransh@cynsar.capital
+    <footer className="bg-gray-900 text-white py-12 mt-auto">
+      <Container className="bg-gray-900">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <Heading level="h3" className="text-xl font-bold mb-4">Second Exchange</Heading>
+              <Text className="text-gray-100 mb-6 max-w-md">
+                An alternative method to LinkedIn for sharing information. While LinkedIn works on capturing your attention, 
+                Second Exchange focuses on meaningful connections and information sharing without the distractions.
+              </Text>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-200">Visit us at:</span>
+                <Link href="https://2nd.exchange" className="text-sm text-blue-300 hover:text-blue-200 transition">
+                  2nd.exchange
                 </Link>
-              </li>
-              <li className="mb-2">
-                <Link href="tel:+123456789">
-                  +1 206 SEND ME A MAIL FIRST THEN GET MY NUMBER
-                </Link>
-              </li>
-            </ul>
+              </div>
+            </div>
+            
+            <div>
+              <Heading level="h3" className="text-xl font-bold mb-4">Our Mission</Heading>
+              <Text className="text-gray-100 mb-6">
+                To create a platform that respects your time and attention while enabling meaningful professional connections 
+                and knowledge sharing without the addictive mechanics of traditional social media.
+              </Text>
+              <div className="mt-4">
+                <Text className="text-gray-200 text-sm">
+                  Access your profile directly via: <span className="text-blue-300 font-medium">username.2nd.exchange</span>
+                </Text>
+              </div>
+            </div>
           </div>
-          <div className="w-full lg:w-1/3">
-            <h5 className="font-bold mb-2">Follow Us</h5>
-            <ul className="text-sm text-gray-400 flex space-x-4">
-              <li>
-                <Link href="">There is no</Link>
-              </li>
-              <li>
-                <Link href="">Better</Link>
-              </li>
-              <li>
-                <Link href="">Time Leaving </Link>
-              </li>
-              <li>
-                <Link href="">Social Media</Link>
-              </li>
-            </ul>
+          
+          <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+            <Text className="text-gray-300 text-sm mb-4 md:mb-0">
+              &copy; {new Date().getFullYear()} Second Exchange. All rights reserved.
+            </Text>
+            <div className="flex space-x-6">
+              <Link href="/privacy" className="text-sm text-gray-200 hover:text-white transition">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="text-sm text-gray-200 hover:text-white transition">
+                Terms of Service
+              </Link>
+              <Link href="/about" className="text-sm text-gray-200 hover:text-white transition">
+                About Us
+              </Link>
+            </div>
           </div>
         </div>
-        <div className="mt-8 text-center text-gray-500 text-sm">
-          &copy; {new Date().getFullYear()} Saransh Sharma All rights reserved.
-        </div>
-      </div>
+      </Container>
     </footer>
   );
 };
