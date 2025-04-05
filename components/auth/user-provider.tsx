@@ -36,12 +36,20 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Initial fetch of user
     refreshUser();
+    
+    // Note: Storage buckets should be pre-created in the Supabase dashboard
+    // with appropriate RLS policies for authenticated users
 
     // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setUser(session?.user ?? null);
-        setIsLoading(false);
+        // Instead of using session.user directly, call getUser() to validate the user
+        if (session) {
+          await refreshUser(); // This calls getCurrentUser which uses getUser()
+        } else {
+          setUser(null);
+          setIsLoading(false);
+        }
       }
     );
 

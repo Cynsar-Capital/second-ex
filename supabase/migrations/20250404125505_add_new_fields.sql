@@ -14,7 +14,7 @@ CREATE TABLE profile_sections (
   section_name TEXT NOT NULL,
   section_order INTEGER DEFAULT 0,
   is_public BOOLEAN DEFAULT true,
-  CONSTRAINT unique_profile_section UNIQUE (profile_id, section_name)
+  CONSTRAINT unique_profile_section UNIQUE (section_name)
 );
 
 -- Enable Row Level Security

@@ -1,8 +1,8 @@
 import { createServerSupabaseClient } from '@/supabase/server'
 import { notFound } from 'next/navigation'
 import ProfileComponent from '@/components/profile'
-import { create } from '../actions/email'
 import { RouteFocusModal } from '@/components/route-focus-modal'
+import { Suspense } from 'react'
 
 export default async function ProfilePage({
   searchParams
@@ -37,8 +37,10 @@ export default async function ProfilePage({
     // Return the profile component with the user's profile data
     return (
       <>
-        <ProfileComponent profile={profile} create={create} />
-        <RouteFocusModal profile={profile} />
+        <ProfileComponent profile={profile} isOwner={true} />
+        <Suspense fallback={<div>Loading...</div>}>
+          <RouteFocusModal profile={profile} />
+        </Suspense>
       </>
     )
   }
@@ -54,11 +56,17 @@ export default async function ProfilePage({
     return notFound()
   }
   
+  // Check if the current user is the owner of this profile using the secure getUser method
+  const { data: { user } } = await supabase.auth.getUser()
+  const isOwner = user?.id === profile.id
+  
   // Return the profile component with the requested user's profile data
   return (
     <>
-      <ProfileComponent profile={profile} create={create} />
-      <RouteFocusModal profile={profile} />
+      <ProfileComponent profile={profile} isOwner={isOwner} />
+      <Suspense fallback={<div>Loading...</div>}>
+        <RouteFocusModal profile={profile} />
+      </Suspense>
     </>
   )
 }

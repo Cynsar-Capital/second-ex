@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FocusModal, Button } from "@medusajs/ui";
+import { FocusModal, Text, Button, toast, Textarea, Input, Label, Select, Alert } from "@medusajs/ui";
 import { useState, useEffect } from 'react';
 import { ProfileData, WorkExperience } from '@/types/profile';
 import { ProfileEditForms } from './profile-edit-forms';
 import { ProfileSectionEditor } from './profile-section-editor';
 import { supabase, getCurrentUser } from '@/supabase/utils';
+import { FollowerModal } from './follower-modal';
 
 interface RouteFocusModalProps {
   profile?: ProfileData;
@@ -15,7 +16,7 @@ interface RouteFocusModalProps {
 export function RouteFocusModal({ profile }: RouteFocusModalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const modalType = searchParams.get('type') as 'profile' | 'bio' | 'work' | 'work-item' | 'sections' | null;
+  const modalType = searchParams.get('type') as 'profile' | 'bio' | 'work' | 'work-item' | 'sections' | 'section-edit' | 'follow' | null;
   const workItemIndex = searchParams.get('index') ? parseInt(searchParams.get('index')!) : undefined;
   // We'll use the session from Supabase directly
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -25,23 +26,29 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
     async function fetchUser() {
       const { user } = await getCurrentUser();
       setCurrentUser(user);
-      console.log('Current user for auth:', user?.id);
     }
     fetchUser();
   }, []);
   
-  console.log('Supabase client initialized:', !!supabase);
-  
   // State for form data
   const [isOpen, setIsOpen] = useState(false);
+  
+  // State for follower modal
+  const [showFollowerModal, setShowFollowerModal] = useState(false);
   
   // Set modal open state based on URL parameters
   useEffect(() => {
     setIsOpen(!!modalType);
+    if (modalType === 'follow') {
+      setShowFollowerModal(true);
+    } else {
+      setShowFollowerModal(false);
+    }
   }, [modalType]);
   
   // Close modal and navigate back
   const handleClose = () => {
+    
     // Use push with the current path but without query parameters
     // Check if we're on a subdomain (username.2nd.exchange or username.localhost)
     const hostname = window.location.hostname;
@@ -102,6 +109,88 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
           
           console.log('Profile sections updated successfully');
           break;
+
+        case 'section-edit':
+          console.log('Updating individual section');
+          // The data structure now comes from the ProfileEditForms component in a new format
+          console.log('Section update data received:', data);
+          
+          if (!data.section_key) {
+            console.error('No section key provided for section-edit');
+            throw new Error('No section key provided for section-edit');
+          }
+          
+          // Make sure we're updating the authenticated user's profile
+          if (!currentUser || currentUser.id !== profile.id) {
+            console.error('Not authorized to update this profile');
+            throw new Error('Not authorized to update this profile');
+          }
+          
+          try {
+            // First update the section title in the profile_sections table
+            if (data.section_id) {
+              // If we have a section ID, update the existing section
+              console.log('Updating existing section:', data.section_id);
+              
+              const { data: sectionUpdateData, error: sectionUpdateError } = await supabase
+                .from('profile_sections')
+                .update({
+                  title: data.title
+                })
+                .eq('id', data.section_id)
+                .eq('profile_id', profile.id);
+              
+              if (sectionUpdateError) throw sectionUpdateError;
+              
+              // Now handle the fields - first delete existing fields for this section
+              const { error: deleteFieldsError } = await supabase
+                .from('profile_section_fields')
+                .delete()
+                .eq('section_id', data.section_id);
+              
+              if (deleteFieldsError) throw deleteFieldsError;
+              
+              // Then insert the new fields
+              if (data.fields && data.fields.length > 0) {
+                console.log('Fields to process:', data.fields);
+                
+                const fieldsToInsert = data.fields.map((field: any, index: number) => {
+                  console.log('Processing field:', field);
+                  return {
+                    section_id: data.section_id,
+                    field_key: field.field_key || `field_${index}`,
+                    field_label: field.field_label || field.label || `Field ${index + 1}`,
+                    field_value: field.field_value || field.value || '',
+                    field_type: field.field_type || field.type || 'text',
+                    display_order: index
+                  };
+                });
+                
+                console.log('Fields to insert:', fieldsToInsert);
+                
+                const { data: insertedFields, error: insertFieldsError } = await supabase
+                  .from('profile_section_fields')
+                  .insert(fieldsToInsert);
+                
+                if (insertFieldsError) {
+                  console.error('Error inserting fields:', insertFieldsError);
+                  throw insertFieldsError;
+                }
+                
+                console.log('Inserted new fields:', insertedFields);
+              }
+            } else {
+              // If no section ID, we need to create a new section
+              console.error('No section ID provided, cannot update section');
+              throw new Error('No section ID provided, cannot update section');
+            }
+            
+            console.log('Section updated successfully');
+          } catch (err) {
+            console.error('Error updating section:', err);
+            throw err;
+          }
+          break;
         case 'profile':
           console.log('Updating profile information');
           console.log('Profile ID for update:', profile.id);
@@ -131,7 +220,9 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
             .update({
               full_name: data.name,
               email: data.email,
-              website: data.website
+              website: data.website,
+              avatar_url: data.avatar_url,
+              background_url: data.background_url
             })
             .eq('id', profile.id);
           
@@ -207,53 +298,91 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
           break;
       }
       
-      console.log('Update successful, closing modal');
+      console.log('Update successful');
       
-      // Fetch the updated profile to verify the changes were saved
-      const { data: updatedProfile, error: fetchError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', profile.id)
-        .single();
-        
-      if (fetchError) {
-        console.error('Error fetching updated profile:', fetchError);
+      // Show success toast based on modal type
+      if (modalType === 'section-edit') {
+        toast.success("Section saved", {
+          description: "Your profile section has been updated.",
+        });
+      } else if (modalType === 'profile') {
+        toast.success("Profile saved", {
+          description: "Your profile information has been updated.",
+        });
       } else {
-        console.log('Updated profile data:', updatedProfile);
+        toast.success("Changes saved", {
+          description: "Your changes have been saved successfully.",
+        });
       }
       
-      // Close modal after successful update
-      handleClose();
-      
-      // Use the global refresh function to update the profile view
-      // This will trigger a re-fetch of the profile data without a page reload
       try {
-        // @ts-ignore
-        if (window.refreshProfileData && typeof window.refreshProfileData === 'function') {
-          // @ts-ignore
-          window.refreshProfileData();
-          console.log('Profile view refreshed via global function');
+        // Explicitly refresh the profile data
+        // First, directly fetch the updated profile data
+        const { data: updatedProfile, error: fetchError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', profile.id)
+          .single();
+          
+        if (fetchError) {
+          console.error('Error fetching updated profile:', fetchError);
         } else {
-          // Fallback to URL-based refresh
-          const timestamp = Date.now();
-          const currentPath = window.location.pathname;
-          
-          // Check if we're on a subdomain (username.2nd.exchange or username.localhost)
-          const hostname = window.location.hostname;
-          const isSubdomain = hostname.includes('.') && !hostname.startsWith('www.');
-          
-          if (isSubdomain) {
-            router.push(`${currentPath}?refresh=${timestamp}`);
-          } else {
-            router.push(`/profile?refresh=${timestamp}`);
-          }
-          console.log('Profile view refreshed via URL change, isSubdomain:', isSubdomain);
+          console.log('Updated profile data:', updatedProfile);
         }
+        // Force the window object to refresh the profile data
+        if (typeof window !== 'undefined') {
+          // First refresh profile sections data
+          // @ts-ignore
+          if (window.refreshProfileSections && typeof window.refreshProfileSections === 'function') {
+            console.log('Calling window.refreshProfileSections()...');
+            // @ts-ignore
+            window.refreshProfileSections();
+            console.log('Profile sections refreshed via global function');
+          }
+          
+          // Then refresh the main profile data
+          // @ts-ignore
+          if (window.refreshProfileData && typeof window.refreshProfileData === 'function') {
+            console.log('Calling window.refreshProfileData()...');
+            // @ts-ignore
+            window.refreshProfileData();
+            console.log('Profile view refreshed via global function');
+          } else {
+            console.log('window.refreshProfileData is not available, using URL-based refresh');
+            // Fallback to URL-based refresh
+            const timestamp = Date.now();
+            const currentPath = window.location.pathname;
+            
+            // Check if we're on a subdomain
+            const hostname = window.location.hostname;
+            const isSubdomain = hostname.includes('.') && !hostname.startsWith('www.');
+            
+            if (isSubdomain) {
+              router.push(`${currentPath}?refresh=${timestamp}`);
+            } else {
+              router.push(`/profile?refresh=${timestamp}`);
+            }
+            console.log('Profile view refreshed via URL change, isSubdomain:', isSubdomain);
+          }
+        }
+        
+        // Close modal after successful update and data refresh
+        handleClose();
       } catch (refreshError) {
         console.error('Error refreshing profile view:', refreshError);
+        toast.error("Error refreshing data", {
+          description: "Your changes were saved, but we couldn't refresh the page data.",
+        });
+        
+        // Still close the modal even if there's a refresh error
+        handleClose();
       }
     } catch (error) {
       console.error('Error updating profile:', error);
+      // Show error toast
+      toast.error("Update failed", {
+        description: "There was a problem updating your profile. Please try again.",
+      });
       // Still close the modal even if there's an error
       handleClose();
     }
@@ -268,6 +397,8 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
     email: profile?.email || "",
     bio: profile?.bio || "",
     website: profile?.website || "",
+    avatar_url: profile?.avatar_url || "",
+    background_url: profile?.background_url || "",
     work: (profile?.profile_sections?.work || profile?.custom_fields?.work || []) as WorkExperience[]
   };
   
@@ -276,7 +407,14 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
     <FocusModal open={isOpen} onOpenChange={(open) => {
       if (!open) handleClose();
     }}>
-      {modalType === 'sections' ? (
+      {modalType === 'follow' ? (
+        <FollowerModal 
+          isOpen={true} 
+          onClose={handleClose} 
+          profileId={profile?.id} 
+          username={profile?.username} 
+        />
+      ) : modalType === 'sections' ? (
         <FocusModal.Content style={{ zIndex: 50, display: 'flex', flexDirection: 'column', height: '90vh' }}>
           <FocusModal.Header>
             <h2 className="text-xl font-semibold">Customize Profile Sections</h2>
@@ -296,7 +434,7 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
           </FocusModal.Footer>
         </FocusModal.Content>
       ) : (
-        <FocusModal.Content>
+        <FocusModal.Content style={{ zIndex: 50, display: 'flex', flexDirection: 'column', height: '90vh', overflow: 'hidden' }}>
           <ProfileEditForms
             open={isOpen}
             onClose={handleClose}
@@ -307,6 +445,32 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
               email: userData.email,
               website: userData.website,
               bio: userData.bio,
+              avatar_url: userData.avatar_url,
+              background_url: userData.background_url,
+              // For section-specific editing, pass the section data
+              ...(modalType === "section-edit" && searchParams.get('section') ? 
+                (() => {
+                  const sectionKey = searchParams.get('section');
+                  
+                  // We'll just pass the section key to the ProfileEditForms component
+                  // The component will fetch the section data and fields from the database
+                  console.log('Section edit modal with section key:', sectionKey);
+                  
+                  // Let's check if we can find this section in the profile data
+                  if (profile.profile_sections) {
+                    console.log('Profile sections from profile data:', profile.profile_sections);
+                  } else {
+                    console.log('No profile_sections found in profile data');
+                  }
+                  
+                  // Create a minimal initial data structure
+                  // The SectionEditor component will fetch the full data
+                  return {
+                    sectionKey,
+                    sectionData: { title: '' } // Minimal placeholder
+                  };
+                })() : {}),
+              // For work item editing
               ...(workItemIndex !== undefined && modalType === "work-item" ? userData.work[workItemIndex] : {})
             }}
             workItemIndex={workItemIndex}

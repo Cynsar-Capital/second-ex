@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Container, Text, Heading } from '@medusajs/ui';
+import { Button, Container, Text, Heading, toast } from '@medusajs/ui';
 import { PlusIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { allSectionTemplates, createSectionFromTemplate } from '../lib/templates/profile-section-templates';
 import { createProfileSection } from '../lib/api/profile-sections';
@@ -24,6 +24,22 @@ export default function ProfileSectionTemplateSelector({
     setSelectedTemplate(templateKey);
   };
 
+  // Check if a section with the same key already exists and get count
+  const checkForDuplicateSections = async (sectionKey: string) => {
+    try {
+      // Make a request to check if a section with this key already exists for this profile
+      const response = await fetch(`/api/profile-sections/check-duplicate?profileId=${profileId}&sectionKey=${sectionKey}`);
+      const data = await response.json();
+      return {
+        exists: data.exists,
+        count: data.count || 0
+      };
+    } catch (err) {
+      console.error('Error checking for duplicate section:', err);
+      return { exists: false, count: 0 }; // Assume no duplicate if we can't check
+    }
+  };
+
   const handleAddSection = async () => {
     if (!selectedTemplate) return;
     
@@ -41,9 +57,24 @@ export default function ProfileSectionTemplateSelector({
       // Create the section
       const { section: sectionTemplate, fields: fieldsTemplate } = templateData;
       
-      // Save the section to the database
+      // Check if this section type already exists for this profile and get count
+      const { exists, count } = await checkForDuplicateSections(sectionTemplate.section_key);
+      
+      // If it's a duplicate, automatically create a numbered title
+      let customTitle = sectionTemplate.title;
+      if (exists) {
+        // Create a numbered title (e.g., "Work Experience 2")
+        customTitle = `${sectionTemplate.title} ${count + 1}`;
+        
+        // Show a toast notification to inform the user
+        toast.info("Creating duplicate section", {
+          description: `Creating "${customTitle}" as you already have a ${sectionTemplate.title} section.`,
+        });
+      }
+      
+      // Save the section to the database with potentially custom title
       const { section, error: sectionError } = await createProfileSection(profileId, {
-        title: sectionTemplate.title,
+        title: customTitle,
         section_key: sectionTemplate.section_key,
         display_order: 0, // Will be updated when saved
         fields: [] // Empty fields array to satisfy the type

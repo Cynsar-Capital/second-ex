@@ -22,6 +22,7 @@
     "@tryghost/content-api": "^1.11.21",
     "@ts-ghost/admin-api": "^4.2.0",
     "@types/tryghost__content-api": "^1.3.16",
+    "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

@@ -12,6 +12,7 @@ export interface ProfileData {
   username?: string;
   full_name?: string;
   avatar_url?: string;
+  background_url?: string;
   website?: string;
   bio?: string;
   email?: string;

@@ -94,19 +94,10 @@ export async function getProfileSectionWithFields(sectionId: string) {
  */
 export async function getProfileSectionsWithFields(profileId: string) {
   try {
-    // First check which column exists for ordering (during migration)
-    const { data: columnInfo } = await supabase
-      .from('information_schema.columns')
-      .select('column_name')
-      .eq('table_name', 'profile_sections')
-      .in('column_name', ['display_order', 'section_order']);
+    // Use display_order as the standard column name for ordering
+    const orderColumn = 'display_order';
     
-    // Default to display_order, but use section_order if that's what exists
-    const orderColumn = columnInfo && columnInfo.some(col => col.column_name === 'section_order')
-      ? 'section_order'
-      : 'display_order';
-    
-    // Get all sections ordered by the appropriate column
+    // Get all sections ordered by display_order
     const { data: sections, error } = await supabase
       .from('profile_sections')
       .select('*')

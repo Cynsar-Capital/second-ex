@@ -25,9 +25,14 @@ export function SignInForm({ onSuccess, onToggle }: AuthFormProps) {
       if (error) {
         setError(error.message);
       } else if (data) {
+        // Trigger any success callbacks
         if (onSuccess) onSuccess();
-        // Refresh the page to update auth state
-        window.location.reload();
+        
+        // Instead of reloading the page, use the auth state change listener
+        // The onAuthStateChange listener in profile.tsx will handle the state update
+        
+        // Optionally, we can dispatch a custom event to notify components that auth state changed
+        window.dispatchEvent(new CustomEvent('auth-state-changed', { detail: { event: 'SIGNED_IN' } }));
       }
     } catch (err) {
       setError("An unexpected error occurred");

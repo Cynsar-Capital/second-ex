@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
-import { Container, Text, IconButton } from "@medusajs/ui";
+import { Container, Text, IconButton, Heading } from "@medusajs/ui";
 import { PencilSquare, Link as LinkIcon, Calendar } from "@medusajs/icons";
 import { EnvelopeIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { ProfileData } from '@/types/profile';
@@ -11,7 +11,7 @@ import ProfileSectionTemplateSelector from './profile-section-template-selector'
 interface ProfileCustomSectionsProps {
   profile: ProfileData;
   isOwner: boolean;
-  onEditSection: (sectionId: string) => void;
+  onEditSection: (type: string, workIndex?: number, sectionKey?: string) => void;
 }
 
 export function ProfileCustomSections({ profile, isOwner, onEditSection }: ProfileCustomSectionsProps) {
@@ -20,12 +20,33 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
   const [error, setError] = useState<string | null>(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState<boolean>(false);
 
+  // State to trigger data refresh
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Function to manually trigger a refresh
+  const refreshSections = useCallback(() => {
+    console.log('Refreshing profile sections...');
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+  
+  // Expose the refresh function to the window object for direct access
+  useEffect(() => {
+    // @ts-ignore
+    window.refreshProfileSections = refreshSections;
+    
+    return () => {
+      // @ts-ignore
+      delete window.refreshProfileSections;
+    };
+  }, [refreshSections]);
+  
   // Fetch sections from the new relational tables using our API
   const fetchSections = useCallback(async () => {
     if (!profile?.id) return;
     
     try {
       setLoading(true);
+      console.log('Fetching profile sections for profile ID:', profile.id);
       
       const { sections: sectionsData, error: apiError } = await getProfileSectionsWithFields(profile.id);
       
@@ -34,6 +55,7 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
       }
       
       if (sectionsData) {
+        console.log('Fetched sections:', sectionsData.length);
         setSections(sectionsData);
       }
     } catch (err) {
@@ -48,7 +70,7 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
     if (profile?.id) {
       fetchSections();
     }
-  }, [profile?.id, fetchSections]);
+  }, [profile?.id, fetchSections, refreshTrigger]); // Added refreshTrigger to dependencies
 
   // Function to determine icon based on field type or value
   const getFieldIcon = (key: string, value: string) => {
@@ -156,14 +178,32 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
               {sortedSections.map((section) => (
                 <Container key={section.id} className="mb-8">
                   <div className="p-6 bg-white dark:bg-slate-800 rounded-lg">
-                    <div className="flex justify-between items-center mb-4">
-                      <Text size="large" className="font-bold">{section.title}</Text>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <Heading level="h2" className="text-xl font-semibold mb-2">{section.title}</Heading>
+                        
+                        {/* Description Field - Find and display the description field first */}
+                        {section.fields && section.fields.find(field => 
+                          field.field_key === 'description' || 
+                          field.field_label.toLowerCase() === 'description'
+                        ) && (
+                          <div className="mb-4">
+                            <Text className="text-gray-700 dark:text-gray-300">
+                              {section.fields.find(field => 
+                                field.field_key === 'description' || 
+                                field.field_label.toLowerCase() === 'description'
+                              )?.field_value}
+                            </Text>
+                          </div>
+                        )}
+                      </div>
+                      
                       {isOwner && (
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-2 ml-4">
                           <IconButton
                             variant="transparent"
                             size="small"
-                            onClick={() => onEditSection(section.id)}
+                            onClick={() => onEditSection('section-edit', undefined, section.section_key)}
                           >
                             <PencilSquare className="h-4 w-4 text-gray-500" />
                           </IconButton>
@@ -177,24 +217,62 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                         </div>
                       )}
                     </div>
-                    <div className="space-y-4">
-                      {(section.fields || []).map((field) => (
-                        <div key={field.id} className="flex items-center gap-2">
-                          <Text size="small" className="text-gray-500">{field.field_label}</Text>
+                    
+                    {/* Other Fields - Display in a cleaner layout */}
+                    <div className="space-y-3">
+                      {/* First handle date fields specially */}
+                      {(() => {
+                        const startDateField = (section.fields || []).find(field => 
+                          field.field_key === 'start_date' || 
+                          field.field_label.toLowerCase().includes('start') ||
+                          field.field_label.toLowerCase() === 'from date'
+                        );
+                        
+                        const endDateField = (section.fields || []).find(field => 
+                          field.field_key === 'end_date' || 
+                          field.field_label.toLowerCase().includes('end') ||
+                          field.field_label.toLowerCase() === 'to date'
+                        );
+                        
+                        if (startDateField || endDateField) {
+                          return (
+                            <div className="flex items-center text-gray-700 dark:text-gray-300 mb-2">
+                              <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                              <Text>
+                                {startDateField?.field_value || ''}
+                                {startDateField?.field_value && endDateField?.field_value ? ' - ' : ''}
+                                {endDateField?.field_value || ''}
+                              </Text>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* Then display other fields without their labels */}
+                      {(section.fields || []).filter(field => 
+                        field.field_key !== 'description' && 
+                        field.field_label.toLowerCase() !== 'description' &&
+                        !field.field_key.includes('date') &&
+                        !field.field_label.toLowerCase().includes('date') &&
+                        !field.field_label.toLowerCase().includes('start') &&
+                        !field.field_label.toLowerCase().includes('end')
+                      ).map((field) => (
+                        <div key={field.id} className="flex items-center">
                           {getFieldIcon(field.field_key, field.field_value) && (
-                            <div className="mr-2">{getFieldIcon(field.field_key, field.field_value)}</div>
+                            <div className="mr-2 text-gray-500">{getFieldIcon(field.field_key, field.field_value)}</div>
                           )}
                           {field.field_value.match(/^(https?:\/\/)/i) ? (
                             <a 
                               href={field.field_value} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-sm"
+                              className="text-blue-600 hover:underline"
                             >
                               {field.field_value}
                             </a>
                           ) : (
-                            <Text size="small">{field.field_value}</Text>
+                            <Text className="text-gray-700 dark:text-gray-300">{field.field_value}</Text>
                           )}
                         </div>
                       ))}

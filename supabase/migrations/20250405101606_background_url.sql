@@ -1,0 +1,1 @@
+ALTER table profiles ADD COLUMN background_url text;
