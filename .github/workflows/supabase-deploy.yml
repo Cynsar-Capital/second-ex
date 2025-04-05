@@ -1,0 +1,46 @@
+name: Deploy Supabase Migrations
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to Supabase project
+        run: |
+          supabase link --project-ref $PROJECT_ID
+
+      - name: Push database migrations
+        run: |
+          supabase db push
+
+      - name: Run storage setup script
+        run: |
+          npm ci
+          npm run storage
+
+      - name: Run tests
+        run: |
+          supabase db reset
+          # Add your test commands here if needed
+          # npm run test
+
+      - name: Deploy Supabase functions
+        run: |
+          supabase functions deploy --project-ref $PROJECT_ID
