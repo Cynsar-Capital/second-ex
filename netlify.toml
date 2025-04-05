@@ -2,19 +2,21 @@
   command = "npm run build"
   publish = ".next"
 
-# Explicitly use the Next.js plugin
+# Use the Next.js plugin
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Important: Configure Netlify to treat all subdomains as part of the same site
+# Set domain environment variables
 [build.environment]
   NEXT_PUBLIC_SITE_URL = "https://2nd.exchange"
   NEXT_PUBLIC_DOMAIN = "2nd.exchange"
 
-# Handle wildcard subdomains - this is critical for subdomain routing
+# This is the key configuration for Netlify to properly handle wildcard subdomains
+# It tells Netlify to proxy all subdomain requests to your main domain where
+# your Next.js middleware can handle them
 [[redirects]]
-  from = "https://*.2nd.exchange/*"
-  to = "https://2nd.exchange/.netlify/functions/next-middleware/:splat"
+  from = "https://*.2nd.exchange/:path*"
+  to = "https://2nd.exchange/:path"
   status = 200
   force = true
 
