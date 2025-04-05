@@ -10,18 +10,9 @@
 [build.environment]
   NEXT_PUBLIC_SITE_URL = "https://2nd.exchange"
   NEXT_PUBLIC_DOMAIN = "2nd.exchange"
+  NEXT_USE_NETLIFY_EDGE = "true"
 
 # This is the key configuration for Netlify to properly handle wildcard subdomains
 # It tells Netlify to proxy all subdomain requests to your main domain where
 # your Next.js middleware can handle them
-[[redirects]]
-  from = "https://*.2nd.exchange/:path*"
-  to = "https://2nd.exchange/:path"
-  status = 200
-  force = true
 
-# Fallback for Next.js routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

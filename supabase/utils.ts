@@ -13,7 +13,6 @@ const COOKIE_DOMAIN = typeof window !== 'undefined'
   : '.2nd.exchange';
 
 // Log the cookie domain for debugging
-console.log('Cookie domain set to:', COOKIE_DOMAIN);
 
 // Client-side Supabase client with cookie domain configuration
 
