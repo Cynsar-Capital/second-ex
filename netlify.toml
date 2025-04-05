@@ -2,12 +2,13 @@
   command = "npm run build"
   publish = ".next"
 
-# Define edge functions
-[[edge_functions]]
-  path = "/*"
-  function = "subdomain-router"
+# Use Next.js middleware with Netlify Edge Functions (default behavior)
+# No need to explicitly define edge functions as Next.js middleware is automatically detected
 
-# Fallback for all other routes to be handled by Next.js
+# Handle wildcard subdomains at the DNS level with a CNAME record:
+# *.2nd.exchange CNAME metasaransharma.netlify.app.
+
+# Fallback for Next.js routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
