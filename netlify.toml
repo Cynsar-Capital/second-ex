@@ -2,11 +2,21 @@
   command = "npm run build"
   publish = ".next"
 
-# Use Next.js middleware with Netlify Edge Functions (default behavior)
-# No need to explicitly define edge functions as Next.js middleware is automatically detected
+# Explicitly use the Next.js plugin
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
-# Handle wildcard subdomains at the DNS level with a CNAME record:
-# *.2nd.exchange CNAME metasaransharma.netlify.app.
+# Important: Configure Netlify to treat all subdomains as part of the same site
+[build.environment]
+  NEXT_PUBLIC_SITE_URL = "https://2nd.exchange"
+  NEXT_PUBLIC_DOMAIN = "2nd.exchange"
+
+# Handle wildcard subdomains - this is critical for subdomain routing
+[[redirects]]
+  from = "https://*.2nd.exchange/*"
+  to = "https://2nd.exchange/.netlify/functions/next-middleware/:splat"
+  status = 200
+  force = true
 
 # Fallback for Next.js routing
 [[redirects]]
