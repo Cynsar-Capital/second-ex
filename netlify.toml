@@ -2,12 +2,10 @@
   command = "npm run build"
   publish = ".next"
 
-# Handle wildcard subdomains
-[[redirects]]
-  from = "https://*.2nd.exchange/*"
-  to = "https://2nd.exchange/:splat"
-  status = 200
-  force = true
+# Define edge functions
+[[edge_functions]]
+  path = "/*"
+  function = "subdomain-router"
 
 # Fallback for all other routes to be handled by Next.js
 [[redirects]]
