@@ -4,8 +4,28 @@ import { createBrowserClient } from '@supabase/ssr'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-// Client-side Supabase client
-export const supabase = createBrowserClient(supabaseUrl, supabaseKey)
+// Determine the root domain for cookie setting
+const COOKIE_DOMAIN = typeof window !== 'undefined' 
+  ? (window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+    // For localhost, we need to use .localhost to share cookies across subdomains
+    ? '' 
+    : '.2nd.exchange') // Note the leading dot for subdomain sharing
+  : '.2nd.exchange';
+
+// Log the cookie domain for debugging
+console.log('Cookie domain set to:', COOKIE_DOMAIN);
+
+// Client-side Supabase client with cookie domain configuration
+
+export const supabase = createBrowserClient(supabaseUrl, supabaseKey, {
+  cookieOptions: {
+    domain: COOKIE_DOMAIN,
+    maxAge: 3600 * 24 * 7, // 7 days
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  }
+})
 
 // Auth helper functions
 export const signUp = async (email: string, password: string) => {
@@ -74,4 +94,58 @@ export const getSession = async () => {
 // Listen to auth changes
 export const onAuthStateChange = (callback: (event: any, session: any) => void) => {
   return supabase.auth.onAuthStateChange(callback)
+}
+
+// Function to set cookies across domains (main domain and subdomains)
+export async function setCrossDomainCookies(session: any) {
+  if (!session) {
+    console.error('No session provided to setCrossDomainCookies');
+    return { success: false, error: 'No session provided' };
+  }
+  
+  try {
+    console.log('Setting cross-domain cookies');
+    
+    // Set the session in Supabase
+    // This will automatically set cookies with the proper domain
+    // thanks to our cookieOptions configuration
+    const { error } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+    
+    if (error) {
+      console.error('Error setting session:', error);
+      return { success: false, error: error.message };
+    }
+    
+    // Verify the user is properly authenticated using getUser (more secure)
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError) {
+      console.error('Error verifying user authentication:', userError);
+      return { success: false, error: userError.message };
+    }
+    
+    if (!user) {
+      console.error('No authenticated user found after setting session');
+      return { success: false, error: 'Authentication failed: No user found' };
+    }
+    
+    console.log('User authenticated successfully:', user.id);
+    
+    // Store in localStorage as a backup
+    localStorage.setItem('supabase.auth.token', JSON.stringify({
+      currentSession: session,
+      expiresAt: Math.floor(Date.now() / 1000) + (session.expires_in || 3600)
+    }));
+    
+    // Log success message
+    console.log('Session set successfully with domain:', COOKIE_DOMAIN);
+    
+    return { success: true, user };
+  } catch (error) {
+    console.error('Error in setCrossDomainCookies:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }

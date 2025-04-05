@@ -7,24 +7,19 @@ require('dotenv').config();
 
 // Get Supabase credentials from environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Validate environment variables
-if (!supabaseUrl || !supabaseKey) {
+if (!supabaseUrl || !serviceRoleKey) {
   console.error('ERROR: Missing Supabase credentials in environment variables');
   console.log('Make sure you have a .env file with the following variables:');
   console.log('  NEXT_PUBLIC_SUPABASE_URL=your_supabase_url');
-  console.log('  NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key');
+  console.log('  SUPABASE_SERVICE_ROLE_KEY=your_service_role_key');
   process.exit(1);
 }
 
-// Create Supabase clients - one with anon key and one with service role key
-const supabase = createClient(supabaseUrl, supabaseKey);
-const adminSupabase = serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : null;
-
-// Determine which client to use for admin operations
-const adminClient = adminSupabase || supabase;
+// Create Supabase client with service role key for admin operations
+const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
 async function setupStorage() {
   console.log('Setting up Supabase storage buckets...');

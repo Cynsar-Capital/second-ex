@@ -1,4 +1,4 @@
-# 2nd.exchange Profile System
+# 2nd.exchange
 
 This is a platform for building and sharing professional profiles with custom sections, recommendations, and more. The application uses Next.js for the frontend and Supabase for authentication, database, and storage.
 

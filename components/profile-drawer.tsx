@@ -21,6 +21,29 @@ export function ProfileDrawer({ isOwner, isLoggedIn, username }: ProfileDrawerPr
   const [pendingRecommendations, setPendingRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [localIsLoggedIn, setLocalIsLoggedIn] = useState(isLoggedIn);
+  
+  // Listen for auth state changes
+  useEffect(() => {
+    const handleAuthStateChange = (event: any) => {
+      console.log('Auth state changed in profile drawer', event.detail);
+      if (event.detail.event === 'SIGNED_IN') {
+        console.log('Auth state changed to SIGNED_IN in profile drawer');
+        setLocalIsLoggedIn(true);
+        setOpen(false); // Close the drawer
+        // No need to reload the page
+      } else if (event.detail.event === 'SIGNED_OUT') {
+        console.log('Auth state changed to SIGNED_OUT in profile drawer');
+        setLocalIsLoggedIn(false);
+      }
+    };
+
+    window.addEventListener('auth-state-changed', handleAuthStateChange);
+    
+    return () => {
+      window.removeEventListener('auth-state-changed', handleAuthStateChange);
+    };
+  }, []);
 
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -37,9 +60,16 @@ export function ProfileDrawer({ isOwner, isLoggedIn, username }: ProfileDrawerPr
     setLoading(true);
     try {
       // Use getUser() which is more secure than getSession()
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Error getting authenticated user:', userError);
+        setLoading(false);
+        return;
+      }
       
       if (user) {
+        console.log('Fetching profile data for user:', user.id);
         const { data, error } = await supabase
           .from('profiles')
           .select('*')

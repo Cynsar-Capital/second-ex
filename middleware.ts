@@ -72,7 +72,12 @@ export async function middleware(request: NextRequest) {
   // Check if we're dealing with a subdomain
   const domainParts = hostname.split('.')
   const isLocalhost = hostname.includes('localhost') || hostname.includes('127.0.0.1')
-  const isSubdomain = domainParts.length > (isLocalhost ? 1 : 2)
+  
+  // For localhost, only treat it as a subdomain if it has format username.localhost
+  // This ensures that plain 'localhost' or 'localhost:3000' goes to the landing page
+  const isSubdomain = isLocalhost 
+    ? (domainParts.length > 1 && domainParts[0] !== 'localhost' && domainParts[0] !== '127.0.0.1')
+    : domainParts.length > 2
   
   if (isSubdomain) {
     // Extract the username from the subdomain
