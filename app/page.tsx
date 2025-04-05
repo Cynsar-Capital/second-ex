@@ -48,7 +48,7 @@ function LandingPage() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 text-center">
         <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-          Let's Ditch Attention-Seeking <br />
+          Lets Ditch Attention-Seeking <br />
           <span className="text-blue-600">Professional Networks</span>
         </h1>
         <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10">
@@ -73,7 +73,7 @@ function LandingPage() {
 
       {/* Benefits Grid */}
       <section className="container mx-auto px-4 py-20">
-        <h2 className="text-3xl font-bold text-center mb-16">Why We're Better</h2>
+        <h2 className="text-3xl font-bold text-center mb-16">Why We are Better</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Benefit 1 */}
