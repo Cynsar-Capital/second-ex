@@ -39,12 +39,12 @@ jobs:
           echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> .env
           npm run storage
 
-      - name: Run tests
-        run: |
-          supabase db reset
-          # Add your test commands here if needed
-          # npm run test
+      # - name: Run tests
+      #   run: |
+      #     supabase db reset
+      #     # Add your test commands here if needed
+      #     # npm run test
 
-      - name: Deploy Supabase functions
-        run: |
-          supabase functions deploy --project-ref $PROJECT_ID
+      # - name: Deploy Supabase functions
+      #   run: |
+      #     supabase functions deploy --project-ref $PROJECT_ID
