@@ -2,7 +2,6 @@
 import { redirect } from 'next/navigation';
 import { createServerSupabaseClient } from '@/supabase/server';
 import ProfileComponent from "@/components/profile";
-import { create } from "./actions/email";
 
 export default async function HomePage() {
   const supabase = createServerSupabaseClient();
@@ -20,11 +19,11 @@ export default async function HomePage() {
     
     if (profile) {
       // If they have a profile, show it
-      return <ProfileComponent profile={profile} create={create} />;
+      return <ProfileComponent profile={profile} />;
     }
   }
   
   // If no user is logged in or they don't have a profile yet,
   // just render the profile component with default values
-  return <ProfileComponent create={create} />;
+  return <ProfileComponent />;
 }
