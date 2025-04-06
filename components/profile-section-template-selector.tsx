@@ -62,8 +62,10 @@ export default function ProfileSectionTemplateSelector({
       
       // If it's a duplicate, automatically create a numbered title
       let customTitle = sectionTemplate.title;
+      let customKey = sectionTemplate.section_key;
       if (exists) {
         // Create a numbered title (e.g., "Work Experience 2")
+        customKey = `${sectionTemplate.section_key}_${count + 1}`;
         customTitle = `${sectionTemplate.title} ${count + 1}`;
         
         // Show a toast notification to inform the user
@@ -75,7 +77,7 @@ export default function ProfileSectionTemplateSelector({
       // Save the section to the database with potentially custom title
       const { section, error: sectionError } = await createProfileSection(profileId, {
         title: customTitle,
-        section_key: sectionTemplate.section_key,
+        section_key: customKey,
         display_order: 0, // Will be updated when saved
         fields: [] // Empty fields array to satisfy the type
       });

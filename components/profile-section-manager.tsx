@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button, Text, Heading, Container } from "@medusajs/ui";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { 
-  getProfileSectionsWithFields, 
-  createProfileSection,
+  getProfileSectionsWithFields,
   ProfileSection
 } from '@/lib/api/profile-sections';
 import { ProfileSectionEditor } from './profile-section-editor';
