@@ -218,22 +218,33 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                   <div className="p-6 pt-8 mt-[-8px] bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 w-full">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
-                        <Heading level="h2" className="text-xl font-semibold mb-2">{section.title}</Heading>
+                        {/* Title Field - Display title field if it exists in fields, otherwise use section title */}
+                        {(() => {
+                          const titleField = section.fields?.find(field => 
+                            field.field_key === 'title' || 
+                            field.field_label.toLowerCase() === 'title'
+                          );
+                          return (
+                            <Heading level="h2" className="text-xl font-semibold mb-2">
+                              {titleField?.field_value || section.title}
+                            </Heading>
+                          );
+                        })()}
                         
                         {/* Description Field - Find and display the description field first */}
-                        {section.fields && section.fields.find(field => 
-                          field.field_key === 'description' || 
-                          field.field_label.toLowerCase() === 'description'
-                        ) && (
-                          <div className="mb-4">
-                            <Text className="text-gray-700 dark:text-gray-300">
-                              {section.fields.find(field => 
-                                field.field_key === 'description' || 
-                                field.field_label.toLowerCase() === 'description'
-                              )?.field_value}
-                            </Text>
-                          </div>
-                        )}
+                        {(() => {
+                          const descriptionField = section.fields?.find(field => 
+                            field.field_key === 'description' || 
+                            field.field_label.toLowerCase() === 'description'
+                          );
+                          return descriptionField ? (
+                            <div className="mb-4">
+                              <Text className="text-gray-700 dark:text-gray-300">
+                                {descriptionField.field_value}
+                              </Text>
+                            </div>
+                          ) : null;
+                        })()} 
                       </div>
                       
                       {isOwner && (
@@ -301,15 +312,40 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                         return null;
                       })()}
                       
-                      {/* Then display other fields without their labels */}
+                      {/* Then display other fields in order: title (already shown), description (already shown), dates, then rest */}
                       {(section.fields || []).filter(field => 
+                        // Exclude title, description as they're already shown
+                        field.field_key !== 'title' && 
+                        field.field_label.toLowerCase() !== 'title' &&
                         field.field_key !== 'description' && 
                         field.field_label.toLowerCase() !== 'description' &&
                         !field.field_key.includes('date') &&
                         !field.field_label.toLowerCase().includes('date') &&
                         !field.field_label.toLowerCase().includes('start') &&
                         !field.field_label.toLowerCase().includes('end')
-                      ).map((field) => (
+                      )
+                      // Sort remaining fields by priority
+                      .sort((a, b) => {
+                        // Define priority fields order
+                        const priorityOrder = ['role', 'position', 'company', 'organization', 'location'];
+                        const aIndex = priorityOrder.findIndex(key => 
+                          a.field_key.toLowerCase().includes(key) || 
+                          a.field_label.toLowerCase().includes(key)
+                        );
+                        const bIndex = priorityOrder.findIndex(key => 
+                          b.field_key.toLowerCase().includes(key) || 
+                          b.field_label.toLowerCase().includes(key)
+                        );
+                        
+                        // If both fields are in priority list, sort by priority
+                        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                        // If only one is in priority list, it goes first
+                        if (aIndex !== -1) return -1;
+                        if (bIndex !== -1) return 1;
+                        // Otherwise, sort alphabetically by label
+                        return a.field_label.localeCompare(b.field_label);
+                      })
+                      .map((field) => (
                         <div key={field.field_id || `${section.section_id}-${field.field_key}`} className="flex items-center">
                           {getFieldIcon(field.field_key, field.field_value) && (
                             <div className="mr-2 text-gray-500">{getFieldIcon(field.field_key, field.field_value)}</div>
