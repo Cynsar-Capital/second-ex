@@ -26,33 +26,53 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll().map(cookie => ({
-            name: cookie.name,
-            value: cookie.value,
-          }))
+          try {
+            // Get all cookies from the request
+            return request.cookies.getAll().map(cookie => ({
+              name: cookie.name,
+              value: cookie.value,
+            }))
+          } catch (error) {
+            console.error('Error getting cookies in middleware:', error)
+            return [] // Return empty array if there's an error
+          }
         },
         setAll(cookies) {
-          cookies.forEach(({ name, value, ...options }) => {
-            request.cookies.set({
-              name,
-              value,
-              ...options,
+          try {
+            // Set cookies on both the request and response objects
+            cookies.forEach(({ name, value, ...options }) => {
+              // Skip if the cookie value is not valid
+              if (name && typeof value === 'string') {
+                request.cookies.set({
+                  name,
+                  value,
+                  ...options,
+                })
+              }
             })
-          })
-          
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          
-          cookies.forEach(({ name, value, ...options }) => {
-            response.cookies.set({
-              name,
-              value,
-              ...options,
+            
+            // Create a new response
+            response = NextResponse.next({
+              request: {
+                headers: request.headers,
+              },
             })
-          })
+            
+            // Set the cookies on the response
+            cookies.forEach(({ name, value, ...options }) => {
+              // Skip if the cookie value is not valid
+              if (name && typeof value === 'string') {
+                response.cookies.set({
+                  name,
+                  value,
+                  ...options,
+                })
+              }
+            })
+          } catch (error) {
+            console.error('Error setting cookies in middleware:', error)
+            // Continue with the response we have
+          }
         },
       },
     }

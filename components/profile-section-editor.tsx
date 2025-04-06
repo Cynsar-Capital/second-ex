@@ -3,6 +3,25 @@
 import { useState, useEffect } from 'react';
 import { Button, Input, Label, Text, Textarea, Select, DatePicker } from "@medusajs/ui";
 import { PlusIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from "@heroicons/react/24/outline";
+import { v4 as uuidv4 } from 'uuid';
+
+// Helper function to determine if a string is a valid database ID
+function isUuid(str: string | undefined): boolean {
+  if (!str) return false;
+  
+  // UUID v4 format regex
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  
+  // Check for Postgres numeric IDs (they should NOT contain hyphens and should be numeric)
+  const isNumericId = !isNaN(Number(str)) && !str.includes('-');
+  
+  // For supabase IDs: they are typically UUIDs (contain hyphens) but sometimes numeric
+  // The key is that they're from the database and not temporarily generated client-side IDs
+  const isValidId = uuidRegex.test(str) || isNumericId;
+  
+  console.log(`ID validation: ${str} - Is valid DB ID? ${isValidId}`);
+  return isValidId;
+}
 import { 
   createProfileSection, 
   updateProfileSection, 
@@ -14,6 +33,24 @@ import {
   NewProfileSection,
   NewProfileSectionField
 } from '@/lib/api/profile-sections';
+
+// Define interface for DB field structure
+interface DBField {
+  field_id: string;
+  field_key: string;
+  field_label: string;
+  field_value: string;
+  field_type: string;
+  display_order?: number;
+}
+
+// Define interface for DB section structure
+interface DBSection {
+  section_id: string;
+  section_key: string;
+  title: string;
+  fields: DBField[];
+}
 
 interface Field {
   id: string;
@@ -41,23 +78,73 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newSection, setNewSection] = useState<Section | null>(null);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Initialize sections from profile data
   useEffect(() => {
     if (initialSections) {
       const formattedSections: Section[] = [];
+      console.log('Initializing sections from profile data:', initialSections);
       
       // Convert the sections object to our format
       Object.entries(initialSections).forEach(([key, value]) => {
         if (typeof value === 'object' && value !== null) {
+          console.log(`Processing section: ${key}`, value);
+          
+          // Check if the value is a section with fields
+          if (value.section_id && Array.isArray(value.fields)) {
+            console.log('Processing section with ID:', value.section_id);
+            
+            const fields: Field[] = value.fields.map((item: DBField) => {
+              // Log each field's ID to ensure we're capturing it correctly
+              console.log(`Processing field: ID=${item.field_id}, Label=${item.field_label}, Type=${item.field_type}`);
+              
+              return {
+                id: item.field_id, // Store the exact field_id from database
+                label: item.field_label || '',
+                value: item.field_value !== undefined ? item.field_value : '',
+                type: item.field_type as 'text' | 'url' | 'email' | 'date' | 'textarea' || 'text'
+              };
+            });
+            
+            formattedSections.push({
+              id: value.section_id, // Use actual section_id
+              title: value.title || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+              fields
+            });
+            
+            // Log the complete processed section for debugging
+            console.log('Processed section:', {
+              id: value.section_id,
+              title: value.title,
+              fieldCount: fields.length,
+              fieldIds: fields.map(f => f.id)
+            });
+          }
           // Handle array of fields
-          if (Array.isArray(value)) {
-            const fields: Field[] = value.map((item, index) => ({
-              id: `${key}-field-${index}`,
-              label: item.label || `Field ${index + 1}`,
-              value: item.value || '',
-              type: item.type || 'text'
-            }));
+          else if (Array.isArray(value)) {
+            console.log('Processing array of fields:', value);
+            
+            const fields: Field[] = value.map((item: any, index) => {
+              // Explicitly log what we're working with for debugging
+              console.log(`Processing array field item ${index}:`, item);
+              
+              // Check if this is a database field structure or just a plain field
+              const isDbField = item.field_id !== undefined || item.field_value !== undefined;
+              
+              // Log field ID for tracking
+              if (isDbField) {
+                console.log(`Using DB field format with ID=${item.field_id} for item ${index}`);
+              }
+              
+              return {
+                // Preserve exact database ID if it exists
+                id: item.field_id || `${key}-field-${index}`,
+                label: item.field_label || item.label || `Field ${index + 1}`,
+                value: item.field_value !== undefined ? item.field_value : (item.value !== undefined ? item.value : ''),
+                type: (item.field_type || item.type || 'text') as 'text' | 'url' | 'email' | 'date' | 'textarea'
+              };
+            });
             
             formattedSections.push({
               id: key,
@@ -70,7 +157,7 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
             const fields: Field[] = Object.entries(value).map(([fieldKey, fieldValue], index) => ({
               id: `${key}-field-${index}`,
               label: fieldKey,
-              value: String(fieldValue || ''),
+              value: fieldValue !== undefined ? String(fieldValue) : '',
               type: 'text'
             }));
             
@@ -83,6 +170,7 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
         }
       });
       
+      console.log('Formatted sections:', formattedSections);
       setSections(formattedSections);
     }
   }, [initialSections]);
@@ -160,6 +248,13 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
 
   // Update a field
   const updateField = (sectionId: string, fieldId: string, updates: Partial<Field>) => {
+    console.log(`Updating field (${fieldId}) with value:`, updates.value !== undefined ? `"${updates.value}"` : 'undefined');
+    
+    // Ensure empty values are preserved
+    if (updates.value === '') {
+      console.log('Empty value detected, ensuring it will be preserved');
+    }
+    
     setSections(sections.map(section => {
       if (section.id === sectionId) {
         return {
@@ -246,10 +341,14 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
     setError(null);
     
     try {
+      console.log('Submitting profile sections form with sections:', sections);
+      
       // Process each section
       for (const section of sections) {
         // Determine if this is an existing section or a new one
         const isExistingSection = section.id && section.id.includes('-') === false;
+        console.log(`Processing section: ${section.title} (${section.id})`, 
+          isExistingSection ? 'Existing section' : 'New section');
         
         if (isExistingSection) {
           // Update existing section
@@ -259,45 +358,146 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
           };
           
           // Convert fields to the format expected by the API
-          const fields = section.fields.map((field, index) => ({
-            id: field.id && field.id.includes('-') === false ? field.id : undefined,
-            field_key: field.label.toLowerCase().replace(/\s+/g, '_'),
-            field_label: field.label,
-            field_value: field.value,
-            field_type: field.type,
-            display_order: index
-          }));
+          const fields = section.fields.map((field, index) => {
+            // Explicitly log field values for debugging
+            console.log(`Field: ${field.label}, Value: "${field.value}", Type: ${field.type}, ID: ${field.id}`);
+            
+            // Determine if this is an existing field with a valid database ID (not a generated one)
+            // The key is to filter out client-side generated temporary IDs
+            console.log(`Field ID check for "${field.label}": ID=${field.id}`);
+            
+            // A field is considered existing only if it has an ID and that ID is a valid database ID
+            // Client-side generated IDs are typically UUIDs but won't be recognized as existing fields
+            const isTemporaryId = field.id && field.id.includes('-') && field.id.length > 30;
+            const isExistingField = field.id && !isTemporaryId && isUuid(field.id);
+            
+            // Enhanced logging for field ID decision making
+            console.log(`Field "${field.label}" (ID=${field.id}): ${isTemporaryId ? 'TEMPORARY ID detected' : ''}`);
+            console.log(`Decision for "${field.label}": ${isExistingField ? 'UPDATE existing with ID: ' + field.id : 'CREATE NEW FIELD'}`);
+            
+            // Explicit logging for debugging
+            if (field.id && !isExistingField) {
+              console.log(`WARNING: Field "${field.label}" has an ID but was NOT recognized as existing: ${field.id}`);
+            }
+            
+            // Prepare the field with proper ID handling
+            const fieldData = {
+              // Only include the ID if it's a valid existing field ID from the database
+              // Otherwise, leave it undefined so a new ID will be generated on the server
+              id: isExistingField ? field.id : undefined,
+              
+              // Create a consistent field_key from the label
+              field_key: field.label.toLowerCase().replace(/\s+/g, '_'),
+              
+              field_label: field.label,
+              
+              // Ensure undefined becomes empty string for proper database handling
+              field_value: field.value !== undefined ? field.value : '',
+              
+              field_type: field.type,
+              display_order: index
+            };
+            
+            console.log(`Sending field: ${field.label} with ID: ${fieldData.id || 'NEW'}`);
+            return fieldData;
+          });
           
+          console.log(`Updating section ${section.id} with ${fields.length} fields:`, fields);
           const { error } = await updateProfileSection(section.id, sectionData, fields);
           
-          if (error) throw error;
+          if (error) {
+            console.error(`Error updating section ${section.id}:`, error);
+            throw error;
+          } else {
+            console.log(`Successfully updated section ${section.id}`);
+          }
         } else {
           // Create new section
+          console.log(`Creating new section: ${section.title}`);
+          
+          // Process fields and ensure empty values are handled properly
+          const fieldsForNewSection = section.fields.map((field, index) => {
+            // Explicitly log field values for debugging
+            console.log(`New section field: ${field.label}, Value: "${field.value}", Type: ${field.type}, ID: ${field.id}`);
+            
+            // For new sections, we need to properly indicate they're new fields
+            return {
+              // Don't include field ID for new section fields
+              field_key: field.label.toLowerCase().replace(/\s+/g, '_'),
+              field_label: field.label,
+              field_value: field.value !== undefined ? field.value : '', // Ensure undefined becomes empty string
+              field_type: field.type,
+              display_order: index
+            };
+          });
+          
           const newSection: NewProfileSection = {
             title: section.title,
             section_key: section.title.toLowerCase().replace(/\s+/g, '_'),
             display_order: sections.indexOf(section),
-            fields: section.fields.map((field, index) => ({
-              field_key: field.label.toLowerCase().replace(/\s+/g, '_'),
-              field_label: field.label,
-              field_value: field.value,
-              field_type: field.type,
-              display_order: index
-            }))
+            fields: fieldsForNewSection
           };
           
+          console.log(`Creating section with ${fieldsForNewSection.length} fields`);
           const { error } = await createProfileSection(profileId, newSection);
           
-          if (error) throw error;
+          if (error) {
+            console.error('Error creating new section:', error);
+            throw error;
+          } else {
+            console.log('Successfully created new section');
+          }
         }
       }
       
-      // If we have a callback, call it with an empty object (for backwards compatibility)
-      if (onSave) {
-        await onSave({});
-      }
+      // Format all sections for saving to the database
+      setIsSaving(true);
       
-      // Reset creating new mode
+      try {
+        console.log('Saving all sections:', sections);
+        
+        // Format sections in the structure expected by the database
+        const formattedSections: Record<string, any> = {};
+        
+        // Format each section for database storage
+        sections.forEach((section) => {
+          const sectionKey = section.title.toLowerCase().replace(/\s+/g, '_');
+          
+          // Format fields to match the database structure
+          const formattedFields = section.fields.map((field) => ({
+            field_id: field.id,
+            field_key: field.label.toLowerCase().replace(/\s+/g, '_'),
+            field_label: field.label,
+            field_value: field.value !== undefined ? field.value : '',
+            field_type: field.type
+          }));
+          
+          // Add to formatted sections object
+          formattedSections[sectionKey] = {
+            section_id: section.id,
+            section_key: sectionKey,
+            title: section.title,
+            fields: formattedFields
+          };
+        });
+        
+        console.log('Formatted sections for database:', formattedSections);
+        
+        // Pass the sections data to the parent's onSave function
+        if (onSave) {
+          await onSave({
+            profile_sections: formattedSections
+          });
+        }
+        
+        // Reset creating new mode
+        setIsCreatingNew(false);
+      } catch (err) {
+        console.error('Error saving sections:', err);
+        setError('Failed to save sections. Please try again.');
+      } finally {
+        setIsSaving(false);
+      }
       setIsCreatingNew(false);
       setNewSection(null);
       setActiveSection(null);

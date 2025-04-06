@@ -3,11 +3,12 @@
 import { Avatar, Container, DropdownMenu, IconButton, Button, Tooltip, TooltipProvider } from "@medusajs/ui"
 import { ProfileCustomSections } from "./profile-custom-sections";
 import {  PencilSquare } from "@medusajs/icons"
+import { useProfile, useProfileByUsername } from "@/lib/hooks/use-profile"
 import { SubscribeDrawer } from "./subs";
 import { ProfileDrawer } from "./profile-drawer";
 import { ProfileRecommendations } from "./profile-recommendations";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from 'react';
 import {  getCurrentUser, getSession, onAuthStateChange } from "@/supabase/utils";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -58,12 +59,20 @@ interface ProfileComponentProps {
   isOwner?: boolean;
 }
 
-const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComponentProps) => {
+const ProfileComponent = ({ profile: initialProfile, isOwner: isOwnerProp = false }: ProfileComponentProps) => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isProfileOwner, setIsProfileOwner] = useState(isOwnerProp);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  
+  // Use TanStack Query to fetch and cache profile data
+  // If initialProfile is provided, use it immediately and let TanStack Query update it in the background
+  const { data: fetchedProfile, isLoading: isProfileLoading } = 
+    useProfile(initialProfile?.id);
+    
+  // Use initialProfile as fallback while loading to prevent unnecessary loading states
+  const profile = isProfileLoading && initialProfile ? initialProfile : fetchedProfile;
 
   // Navigate to edit route
   const openEditModal = (type: string, workIndex?: number, sectionKey?: string) => {
@@ -88,44 +97,10 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
     }
   };
 
-  // State to trigger data refresh
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // TanStack Query already handles profile refreshing automatically
+  // No need for manual refresh functions or global window objects
   
-  // Function to manually trigger a refresh
-  const refreshProfile = () => {
-    setRefreshTrigger(prev => prev + 1);
-  };
-  
-  // Expose the refresh function to the window object for direct access
-  useEffect(() => {
-    // @ts-ignore
-    window.refreshProfileData = refreshProfile;
-    
-    // Listen for URL changes to trigger refresh
-    const handleRouteChange = () => {
-      // Increment refresh trigger to cause a re-fetch
-      refreshProfile();
-    };
-
-    // Listen for custom auth state change events
-    const handleAuthStateChange = () => {
-      console.log('Auth state changed, refreshing profile data');
-      refreshProfile();
-    };
-    
-    // Add event listeners
-    window.addEventListener('popstate', handleRouteChange);
-    window.addEventListener('auth-state-changed', handleAuthStateChange);
-    
-    return () => {
-      window.removeEventListener('popstate', handleRouteChange);
-      window.removeEventListener('auth-state-changed', handleAuthStateChange);
-      // @ts-ignore
-      delete window.refreshProfileData;
-    };
-  }, []);
-  
-  // Fetch current user on component mount and when refresh is triggered
+  // Simplified user authentication effect
   useEffect(() => {
     async function fetchUser() {
       try {
@@ -155,12 +130,14 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
         setIsLoading(false);
       }
     }
+    
     fetchUser();
     
-    // Also listen for auth state changes
+    // Listen for auth state changes
     const { data: authListener } = onAuthStateChange(async (event: string, session: any) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         fetchUser();
+        // TanStack Query will automatically refresh when needed
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
         setIsLoggedIn(false);
@@ -172,7 +149,16 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [profile, refreshTrigger, isOwnerProp]); // Refresh when profile changes, refresh is triggered, or isOwnerProp changes
+  }, [profile, isOwnerProp]); // Only depend on profile and isOwnerProp
+  
+  // Only show loading state if we don't have any profile data at all
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
   
   // Extract profile data or use defaults
   const userData = {

@@ -18,6 +18,7 @@ interface ProfileEditFormsProps {
 const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: (data: any) => void }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dataFetched, setDataFetched] = useState(false);
   
   // Use refs to track the latest values without causing re-renders
   const formDataRef = useRef(formData);
@@ -27,6 +28,16 @@ const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: 
   useEffect(() => {
     formDataRef.current = formData;
     setFormDataRef.current = setFormData;
+    
+    // Reset fetch state if key changes
+    if (formData.sectionKey !== formDataRef.current.sectionKey) {
+      setDataFetched(false);
+    }
+    
+    // Mark as fetched if we have section data with fields
+    if (formData.sectionData?.fields && formData.sectionData.fields.length > 0) {
+      setDataFetched(true);
+    }
   }, [formData, setFormData]);
   
   // Fetch section fields from the database when component mounts
@@ -35,28 +46,53 @@ const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: 
     let isMounted = true;
     
     const fetchSectionFields = async () => {
+      // If we've already successfully fetched data, skip
+      if (dataFetched) {
+        console.log('Data already fetched, skipping fetch');
+        return;
+      }
+      
       const currentFormData = formDataRef.current;
       
+      // Check if we have an identifier to look up the section
       if (!currentFormData.sectionId && !currentFormData.sectionKey) {
-        console.log('No section ID or key provided, using existing data');
+        console.log('No section ID or key provided, cannot fetch section data');
+        setError('No section identifier provided');
         return;
       }
       
-      // Avoid duplicate fetches by checking if we already have fields
-      if (currentFormData.sectionData?.fields && currentFormData.sectionData.fields.length > 0) {
-        console.log('Already have fields data, skipping fetch');
+      // Special case: if we already have fields data (likely from a template), just mark as fetched
+      if (currentFormData.sectionData?.fields?.length > 0) {
+        console.log('Using pre-initialized fields from section template:', currentFormData.sectionData.fields.length, 'fields');
+        setDataFetched(true);
         return;
       }
       
+      // Log which identifier we'll use to fetch
+      console.log('Will fetch section data based on:', {
+        id: currentFormData.sectionId || 'Not provided',
+        key: currentFormData.sectionKey || 'Not provided'
+      });
+      
+      // Start loading state
       setIsLoading(true);
       setError(null);
       
       try {
         const currentFormData = formDataRef.current;
         console.log('Fetching section fields for:', {
-          sectionId: currentFormData.sectionId,
-          sectionKey: currentFormData.sectionKey
+          sectionId: currentFormData.sectionId || 'Not provided (using key instead)',
+          sectionKey: currentFormData.sectionKey || 'Not provided (using ID instead)'
         });
+        
+        // Log a more descriptive message about the lookup strategy
+        if (currentFormData.sectionId) {
+          console.log(`Will look up section by ID: ${currentFormData.sectionId}`);
+        } else if (currentFormData.sectionKey) {
+          console.log(`Will look up section by key: ${currentFormData.sectionKey}`);
+        } else {
+          console.log('Warning: Neither section ID nor key provided');
+        }
         
         // Get current user to get profile ID
         const { user, error: userError } = await getCurrentUser();
@@ -79,10 +115,21 @@ const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: 
         }
         
         // Find the specific section we're editing by ID or section_key
-        const targetSection = sections.find(section => 
-          (currentFormData.sectionId && section.id === currentFormData.sectionId) || 
-          (currentFormData.sectionKey && section.section_key === currentFormData.sectionKey)
-        );
+        const targetSection = sections.find(section => {
+          // First try by ID if available
+          if (currentFormData.sectionId && section.section_id === currentFormData.sectionId) {
+            console.log(`Found section by ID match: ${section.section_id}`);
+            return true;
+          }
+          
+          // Then try by section_key if available
+          if (currentFormData.sectionKey && section.section_key === currentFormData.sectionKey) {
+            console.log(`Found section by key match: ${section.section_key}`);
+            return true;
+          }
+          
+          return false;
+        });
         
         if (!targetSection) {
           console.error('Section not found in profile sections');
@@ -96,12 +143,14 @@ const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: 
           // Update form data with the fetched fields
           setFormDataRef.current({
             ...currentFormData,
-            sectionId: targetSection.id, // Ensure we have the ID for later
+            sectionId: targetSection.section_id, // Ensure we have the ID for later
             sectionKey: targetSection.section_key, // Make sure we have the section key
             sectionData: {
               title: targetSection.title,
               fields: targetSection.fields || []
-            }
+            },
+            // Log success message
+            lastFetchTime: new Date().toISOString()
           });
         }
       } catch (err: any) {
@@ -122,47 +171,81 @@ const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: 
     return () => {
       isMounted = false;
     };
-  }, []); 
+  }, [dataFetched]); 
   
-  if (isLoading) {
-    return <div className="p-4 text-center">Loading section fields...</div>;
-  }
+  // Handle field value changes
+  const handleFieldChange = (index: number, value: string) => {
+    const updatedFields = [...formData.sectionData.fields];
+    updatedFields[index] = {
+      ...updatedFields[index],
+      field_value: value
+    };
+    
+    setFormData({
+      ...formData,
+      sectionData: {
+        ...formData.sectionData,
+        fields: updatedFields
+      }
+    });
+  };
   
-  if (error) {
-    return <div className="p-4 text-center text-red-500">{error}</div>;
-  }
-  
+  // Render the section editor with fields
   return (
     <div className="w-full max-w-2xl mx-auto px-4">
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="animate-pulse text-blue-500">Loading section data...</div>
+            <div className="text-sm text-gray-500 mt-2">Fetching section details for {formData.sectionKey}</div>
+          </div>
+        </div>
+      )}
+      
+      {/* Waiting for section data */}
+      {!isLoading && !formData.sectionData?.fields && (
+        <div className="p-4 border border-amber-300 rounded bg-amber-50 text-amber-800">
+          <p className="font-medium">Waiting for section data...</p>
+          <p className="text-sm mt-2">Looking for section with key: {formData.sectionKey}</p>
+          <p className="text-sm mt-1">If this section doesn&apos;t exist yet, it will be created when you save.</p>
+        </div>
+      )}
+      
+      {/* Error message */}
+      {error && <div className="text-red-500 p-2 border border-red-300 rounded bg-red-50">{error}</div>}
+      
       {/* Title field - always present for all sections */}
-      <div className="mb-6">
-        <Label htmlFor="title" className="text-base font-medium">Section Title</Label>
-        <Input
-          id="title"
-          value={formData.sectionData.title || ''}
-          onChange={(e) => {
-            setFormData({
-              ...formData,
-              sectionData: { ...formData.sectionData, title: e.target.value }
-            });
-          }}
-          className="w-full mt-2"
-          required
-          placeholder="Enter section title"
-        />
-      </div>
+      {!isLoading && formData?.sectionData && (
+        <div className="mb-6">
+          <Label htmlFor="title" className="text-base font-medium">Section Title</Label>
+          <Input
+            id="title"
+            value={formData.sectionData.title || ''}
+            onChange={(e) => {
+              setFormData({
+                ...formData,
+                sectionData: { ...formData.sectionData, title: e.target.value }
+              });
+            }}
+            className="w-full mt-2"
+            required
+            placeholder="Enter section title"
+          />
+        </div>
+      )}
 
-      {/* Render fields based on section type */}
-      {formData.sectionData.fields && Array.isArray(formData.sectionData.fields) ? (
-        // Handle fields array
+      {/* Fields section */}
+      {!isLoading && formData?.sectionData?.fields && formData.sectionData.fields.length > 0 ? (
         <div className="space-y-6">
+          <div className="text-sm text-green-600 mb-4">Section data loaded successfully</div>
           {formData.sectionData.fields.map((field: any, index: number) => (
-            <div key={field.id || index} className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div key={field.field_id || index} className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <Label 
                 htmlFor={`field-value-${index}`} 
                 className="text-base font-medium mb-2 block"
               >
-                {field.field_label || `Field ${index + 1}`}
+                {field.field_label}
               </Label>
               
               {/* Date picker for date fields */}
@@ -224,52 +307,74 @@ const SectionEditor = ({ formData, setFormData }: { formData: any, setFormData: 
             </div>
           ))}
         </div>
-      ) : (
+      ) : !isLoading && formData?.sectionData ? (
         // Handle object-based section data for simple sections
-        <div className="space-y-4">
-          {Object.entries(formData.sectionData).map(([key, value]: [string, any]) => {
-            // Skip internal keys, id, and title (already handled)
-            if (key.startsWith('_') || key === 'id' || key === 'title' || key === 'section_key' || key === 'fields') return null;
-            
-            const fieldLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
-            
-            return (
-              <div key={key} className="mb-4">
-                <Label htmlFor={key}>{fieldLabel}</Label>
-                {typeof value === 'string' && value.length > 100 ? (
-                  <Textarea
-                    id={key}
-                    value={value}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        sectionData: { ...formData.sectionData, [key]: e.target.value }
-                      });
-                    }}
-                    className="w-full"
-                    rows={4}
-                  />
-                ) : (
-                  <Input
-                    id={key}
-                    value={value}
-                    onChange={(e) => {
-                      setFormData({
-                        ...formData,
-                        sectionData: { ...formData.sectionData, [key]: e.target.value }
-                      });
-                    }}
-                    className="w-full"
-                  />
-                )}
-              </div>
+        <div className="space-y-6">
+          <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+            <p className="text-blue-700 font-medium">Setting up {formData.sectionKey} section</p>
+            <p className="text-sm text-blue-600 mt-1">The section will be created with the fields defined below.</p>
+          </div>
+          
+          {/* Convert object properties to fields or show existing ones */}
+          {(() => {
+            // Extract data fields (non-metadata) from the section data
+            const dataFields = Object.entries(formData.sectionData).filter(([key]) => 
+              !key.startsWith('_') && !['id', 'title', 'section_key', 'fields'].includes(key)
             );
-          })}
+            
+            // If no data fields exist, add some helpful information
+            if (dataFields.length === 0) {
+              return (
+                <div className="bg-gray-50 p-4 rounded border border-gray-200">
+                  <p className="text-gray-600">This section is ready to be saved with basic information.</p>
+                  <p className="text-sm text-gray-500 mt-2">Fields will be defined based on the section template.</p>
+                </div>
+              );
+            }
+            
+            // Otherwise, map through the data fields and display them for editing
+            return dataFields.map(([key, value]: [string, any]) => {
+              const fieldLabel = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+              
+              return (
+                <div key={key} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <Label htmlFor={key} className="text-base font-medium mb-2 block">{fieldLabel}</Label>
+                  {typeof value === 'string' && value.length > 100 ? (
+                    <Textarea
+                      id={key}
+                      value={value}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          sectionData: { ...formData.sectionData, [key]: e.target.value }
+                        });
+                      }}
+                      className="w-full mt-2"
+                      rows={4}
+                    />
+                  ) : (
+                    <Input
+                      id={key}
+                      value={value || ''}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          sectionData: { ...formData.sectionData, [key]: e.target.value }
+                        });
+                      }}
+                      className="w-full mt-2"
+                    />
+                  )}
+                </div>
+              );
+            });
+          })()
+          }
         </div>
-      )}
+      ) : null}
     </div>
   );
-};;
+};
 
 export const ProfileEditForms = ({
   open,
@@ -281,7 +386,16 @@ export const ProfileEditForms = ({
 }: ProfileEditFormsProps) => {
   // State for form data
   const [formData, setFormData] = useState(initialData || {});
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasFileUploads, setHasFileUploads] = useState(false);
+  
+  // Update form data when initialData changes (e.g., when fresh data is fetched)
+  useEffect(() => {
+    console.log('ProfileEditForms: initialData changed', initialData);
+    if (initialData) {
+      setFormData(initialData);
+    }
+  }, [initialData]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(initialData?.avatar_url || null);
   const [backgroundPreview, setBackgroundPreview] = useState<string | null>(initialData?.background_url || null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -290,6 +404,7 @@ export const ProfileEditForms = ({
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    console.log(`Field ${name} changed to: '${value}'`, typeof value, value === '');
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
@@ -307,6 +422,9 @@ export const ProfileEditForms = ({
       setBackgroundPreview(objectUrl);
       setFormData((prev: any) => ({ ...prev, backgroundFile: file }));
     }
+    
+    // Indicate that this form has file uploads
+    setHasFileUploads(true);
   };
 
   // Trigger file input click
@@ -330,7 +448,12 @@ export const ProfileEditForms = ({
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsUploading(true);
+    setIsSubmitting(true);
+    
+    // Reset file upload flag if we're not in a form type that has file uploads
+    if (formType !== 'profile') {
+      setHasFileUploads(false);
+    }
     
     try {
       const dataToSubmit = { ...formData };
@@ -367,52 +490,74 @@ export const ProfileEditForms = ({
       
       // Handle section-edit form type
       if (formType === 'section-edit' && formData.sectionKey && formData.sectionData) {
-        // Prepare the data for section update
-        // We need to include the section ID if available for proper updating
-        const sectionUpdateData = {
-          section_key: formData.sectionKey,
-          section_id: formData.sectionId, // This will be set by our SectionEditor component
-          title: formData.sectionData.title || '',
-          fields: Array.isArray(formData.sectionData.fields) ? formData.sectionData.fields.map((field: any) => ({
+        // Extract normal data properties to convert to fields if needed
+        let fieldsArray = [];
+        
+        // If formData.sectionData.fields exists and is an array, use it as the base
+        if (Array.isArray(formData.sectionData.fields)) {
+          fieldsArray = formData.sectionData.fields.map((field: any) => ({
             // Ensure all required fields are present
-            field_id: field.id || null,
+            field_id: field.field_id || field.id || null,
             field_key: field.field_key || field.key || `field_${Math.random().toString(36).substring(2, 9)}`,
             field_label: field.field_label || field.label || 'Untitled Field',
             field_value: field.field_value || field.value || '',
             field_type: field.field_type || field.type || 'text'
-          })) : []
+          }));
+        }
+        
+        // Now check for other properties that should be converted to fields
+        // This handles the case where the section doesn't have a fields array yet
+        Object.entries(formData.sectionData).forEach(([key, value]) => {
+          // Skip metadata and already processed fields
+          if (key.startsWith('_') || ['id', 'title', 'section_key', 'fields'].includes(key)) {
+            return;
+          }
+          
+          // Convert property to a field
+          fieldsArray.push({
+            field_id: null, // New field
+            field_key: key,
+            field_label: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+            field_value: value || '',
+            field_type: typeof value === 'string' && value.length > 100 ? 'textarea' : 'text'
+          });
+        });
+        
+        // Prepare the data for section update with the complete fields array
+        const sectionUpdateData = {
+          section_key: formData.sectionKey,
+          section_id: formData.sectionId, // This will be set by our SectionEditor component
+          title: formData.sectionData.title || '',
+          fields: fieldsArray
         };
         
         console.log('Section edit submitted with data:', sectionUpdateData);
-        await onSubmit(sectionUpdateData);
         
-        // Manually refresh profile sections data
-        if (typeof window !== 'undefined') {
-          // @ts-ignore
-          if (window.refreshProfileSections && typeof window.refreshProfileSections === 'function') {
-            console.log('Calling window.refreshProfileSections() from ProfileEditForms...');
-            // @ts-ignore
-            window.refreshProfileSections();
-          }
+        try {
+          // Submit the update
+          await onSubmit(sectionUpdateData);
+          
+          // Show success message
+          toast.success("Section updated successfully");
+          
+          // Close the modal
+          onClose();
+        } catch (error) {
+          console.error('Error updating section:', error);
+          toast.error("Failed to update section");
         }
         
-        // Don't show toast here, let RouteFocusModal handle it
         return;
       }
       
+      // Add explicit log for debugging empty values
       console.log('Form submitted with data:', dataToSubmit);
+      console.log('Bio value type:', typeof dataToSubmit.bio, 'Length:', dataToSubmit.bio?.length, 'Value:', JSON.stringify(dataToSubmit.bio));
+      
       // Call onSubmit with the processed data
       await onSubmit(dataToSubmit);
       
-      // Manually refresh profile sections data
-      if (typeof window !== 'undefined') {
-        // @ts-ignore
-        if (window.refreshProfileSections && typeof window.refreshProfileSections === 'function') {
-          console.log('Calling window.refreshProfileSections() from ProfileEditForms (profile form)...');
-          // @ts-ignore
-          window.refreshProfileSections();
-        }
-      }
+      // TanStack Query will handle data refreshing automatically
       
       // Don't show toast here, let RouteFocusModal handle it
     } catch (error) {
@@ -421,7 +566,7 @@ export const ProfileEditForms = ({
         description: "There was a problem updating your profile. Please try again.",
       });
     } finally {
-      setIsUploading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -625,25 +770,32 @@ export const ProfileEditForms = ({
         };
         
       case "section-edit":
-        // Handle section editing
-        if (!formData.sectionKey || !formData.sectionData) {
-          console.log('Section data not found:', formData);
+        // Handle section editing - with an initialized sectionData object from the modal
+        if (!formData.sectionKey) {
+          console.log('No section key provided:', formData);
           return {
             title: "Edit Section",
-            subtitle: "Update section information",
-            form: <div>Section data not found</div>
+            subtitle: "Section identifier required",
+            form: <div>Cannot edit section: No section identifier provided</div>
           };
         }
 
-        console.log('Rendering section edit form with data:', formData);
+        console.log('Rendering section edit form with:', {
+          key: formData.sectionKey,
+          hasData: !!formData.sectionData,
+          fields: formData.sectionData?.fields?.length || 0
+        });
 
         // Format the section title for display
         const sectionTitle = formData.sectionKey.charAt(0).toUpperCase() + 
           formData.sectionKey.slice(1).replace(/_/g, ' ');
+        
+        // Use the title from data if available, otherwise use formatted section key
+        const displayTitle = formData.sectionData?.title || sectionTitle;
 
         // Use the SectionEditor component with useEffect to load fields
         return {
-          title: `Edit ${sectionTitle}`,
+          title: `Edit ${displayTitle}`,
           subtitle: "Update section information",
           form: <SectionEditor formData={formData} setFormData={setFormData} />
         };
@@ -657,6 +809,16 @@ export const ProfileEditForms = ({
     }
   })()
 
+  // Set hasFileUploads based on form type and data when component mounts
+  useEffect(() => {
+    // Check if this form type typically has file uploads
+    if (formType === 'profile') {
+      setHasFileUploads(true);
+    } else {
+      setHasFileUploads(false);
+    }
+  }, [formType]);
+  
   // We don't render our own FocusModal because we're already inside one from RouteFocusModal
   return (
     <form id="profile-edit-form" onSubmit={handleSubmit} onClick={handleFormClick} className="flex flex-col h-full">
@@ -683,10 +845,10 @@ export const ProfileEditForms = ({
         <Button 
           variant="primary" 
           type="submit" 
-          disabled={isUploading}
+          disabled={isSubmitting}
           className="w-full sm:w-auto"
         >
-          {isUploading ? "Uploading..." : "Save Changes"}
+          {isSubmitting ? (hasFileUploads ? "Uploading..." : "Saving...") : "Save Changes"}
         </Button>
       </FocusModal.Footer>
     </form>

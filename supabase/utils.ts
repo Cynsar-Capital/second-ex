@@ -12,11 +12,19 @@ const COOKIE_DOMAIN = typeof window !== 'undefined'
     : '.2nd.exchange') // Note the leading dot for subdomain sharing
   : '.2nd.exchange';
 
-// Log the cookie domain for debugging
-
-// Client-side Supabase client with cookie domain configuration
-
+// Client-side Supabase client with consistent storage configuration
+// Using localStorage to avoid cookie parsing issues
 export const supabase = createBrowserClient(supabaseUrl, supabaseKey, {
+  // Persist sessions using localStorage instead of cookies
+  // This avoids issues with cookie parsing and session management
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    // Use localStorage for client-side authentication instead of cookies
+    storageKey: 'supabase.auth.token',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined
+  },
+  // Keep these cookie options for non-auth related features
   cookieOptions: {
     domain: COOKIE_DOMAIN,
     maxAge: 3600 * 24 * 7, // 7 days

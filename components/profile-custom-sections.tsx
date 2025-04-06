@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { Container, Text, IconButton, Heading } from "@medusajs/ui";
+import { useState } from 'react';
+import { Container, Text, IconButton, Heading, toast } from "@medusajs/ui";
 import { PencilSquare, Link as LinkIcon, Calendar } from "@medusajs/icons";
 import { EnvelopeIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { ProfileData } from '@/types/profile';
-import { getProfileSectionsWithFields, deleteProfileSection, ProfileSection } from '@/lib/api/profile-sections';
+import { deleteProfileSection, ProfileSection } from '@/lib/api/profile-sections';
+import { useProfileSections } from '@/lib/hooks/use-profile-sections';
 import ProfileSectionTemplateSelector from './profile-section-template-selector';
 
 interface ProfileCustomSectionsProps {
@@ -15,63 +16,26 @@ interface ProfileCustomSectionsProps {
 }
 
 export function ProfileCustomSections({ profile, isOwner, onEditSection }: ProfileCustomSectionsProps) {
-  const [sections, setSections] = useState<ProfileSection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showTemplateSelector, setShowTemplateSelector] = useState<boolean>(false);
-
-  // State to trigger data refresh
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // Function to manually trigger a refresh
-  const refreshSections = useCallback(() => {
-    console.log('Refreshing profile sections...');
-    setRefreshTrigger(prev => prev + 1);
-  }, []);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   
-  // Expose the refresh function to the window object for direct access
-  useEffect(() => {
-    // @ts-ignore
-    window.refreshProfileSections = refreshSections;
-    
-    return () => {
-      // @ts-ignore
-      delete window.refreshProfileSections;
-    };
-  }, [refreshSections]);
+  // Use the profile sections hook for data fetching with Tanstack Query
+  const { useFetchProfileSections, deleteSection: deleteSectionMutation } = useProfileSections();
   
-  // Fetch sections from the new relational tables using our API
-  const fetchSections = useCallback(async () => {
-    if (!profile?.id) return;
-    
-    try {
-      setLoading(true);
-      console.log('Fetching profile sections for profile ID:', profile.id);
-      
-      const { sections: sectionsData, error: apiError } = await getProfileSectionsWithFields(profile.id);
-      
-      if (apiError) {
-        throw apiError;
-      }
-      
-      if (sectionsData) {
-        console.log('Fetched sections:', sectionsData.length);
-        setSections(sectionsData);
-      }
-    } catch (err) {
-      console.error('Error fetching profile sections:', err);
-      setError('Failed to load profile sections');
-    } finally {
-      setLoading(false);
-    }
-  }, [profile?.id, setLoading, setSections, setError]);
+  // Fetch sections using Tanstack Query
+  const { 
+    data: sections = [], 
+    isLoading: loading,
+    error: queryError,
+    refetch
+  } = useFetchProfileSections(profile?.id || '');
   
-  useEffect(() => {
-    if (profile?.id) {
-      fetchSections();
-    }
-  }, [profile?.id, fetchSections, refreshTrigger]); // Added refreshTrigger to dependencies
-
+  // Handle any query errors
+  if (queryError) {
+    console.error('Error in profile sections query:', queryError);
+  }
+  
   // Function to determine icon based on field type or value
   const getFieldIcon = (key: string, value: string) => {
     // Handle null or undefined values
@@ -96,45 +60,110 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
     return null;
   };
 
-  // Sort sections by display_order
+  // Sort sections alphabetically by title since display_order might not be available
   const sortedSections = [...sections].sort((a, b) => {
-    const aOrder = a.display_order ?? 0;
-    const bOrder = b.display_order ?? 0;
-    return aOrder - bOrder;
+    // Attempt to use display_order if available, otherwise fall back to title sorting
+    const displayOrderA = (a as any).display_order;
+    const displayOrderB = (b as any).display_order;
+    
+    if (displayOrderA !== undefined && displayOrderB !== undefined) {
+      return displayOrderA - displayOrderB;
+    }
+    return a.title.localeCompare(b.title);
   });
 
   const handleAddNewSection = () => {
     setShowTemplateSelector(true);
   };
   
-  const handleDeleteSection = async (sectionId: string) => {
+  const handleDeleteSection = async (sectionId: string | undefined) => {
+    if (!sectionId) {
+      console.error('Cannot delete section: No section ID provided');
+      setError('Failed to delete section: Missing ID');
+      toast.error('Failed to delete section: Missing ID');
+      return;
+    }
+    
+    // Find the section to get its title for confirmation
+    console.log('All section IDs:', sections.map(s => s.section_id));
+    console.log('Section ID to delete:', sectionId);
+    
+    // Try to find the section with a string comparison in case of type issues
+    const sectionToDelete = sections.find(section => String(section.section_id) === String(sectionId));
+    if (!sectionToDelete) {
+      console.error(`Cannot find section with ID: ${sectionId}`);
+      setError(`Failed to delete section: Section with ID ${sectionId} not found`);
+      toast.error(`Failed to delete section: Section not found`);
+      return;
+    }
+    
+    console.log('Found section to delete:', sectionToDelete);
+    
+    // Use the mutation from the hook to delete the section
     try {
-      const { error: deleteError } = await deleteProfileSection(sectionId);
+      // Show a loading toast for better UX
+      const loadingToast = toast.loading(`Deleting ${sectionToDelete.title} section...`);
       
-      if (deleteError) {
-        throw deleteError;
-      }
-      
-      // Refresh sections list
-      fetchSections();
+      // Call the mutation to delete the section - must use object with sectionId property
+      await deleteSectionMutation.mutateAsync({ sectionId }, {
+        onSuccess: () => {
+          // Dismiss loading toast
+          toast.dismiss(loadingToast);
+          
+          // Set success message for the UI
+          setMessage(`The "${sectionToDelete.title}" section has been deleted successfully.`);
+          
+          // Invalidate queries is handled by the mutation's onSuccess callback
+          // Call refetch to ensure UI is updated immediately
+          refetch();
+          
+          // Set a timeout to clear the message
+          setTimeout(() => setMessage(''), 3000);
+        },
+        onError: (error: Error) => {
+          // Dismiss loading toast
+          toast.dismiss(loadingToast);
+          
+          // Log and display error
+          console.error('Error deleting section:', error);
+          setError(`Failed to delete section: ${error.message || 'Unknown error'}`);
+        }
+      });
     } catch (err) {
       console.error('Error deleting section:', err);
-      setError('Failed to delete section');
+      // Handle the error and provide user feedback
+      setError(`Failed to delete section: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      toast.error('Failed to delete section', {
+        description: err instanceof Error ? err.message : 'An error occurred',
+        duration: 5000
+      });
     }
   };
 
   return (
     <>
+      {/* Success message */}
+      {message && (
+        <Container className="mb-4">
+          <div className="p-4 bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-lg">
+            <Text className="text-sm text-green-700 dark:text-green-300">{message}</Text>
+          </div>
+        </Container>
+      )}
+      
+      {/* Error message */}
+      {error && (
+        <Container className="mb-4">
+          <div className="p-4 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg">
+            <Text className="text-sm text-red-700 dark:text-red-300">{error}</Text>
+          </div>
+        </Container>
+      )}
+      
       {loading ? (
         <Container className="mb-8">
           <div className="p-6 bg-white dark:bg-slate-800 rounded-lg flex justify-center">
             <Text className="text-sm text-gray-500">Loading sections...</Text>
-          </div>
-        </Container>
-      ) : error ? (
-        <Container className="mb-8">
-          <div className="p-6 bg-white dark:bg-slate-800 rounded-lg">
-            <Text className="text-sm text-red-500">{error}</Text>
           </div>
         </Container>
       ) : (
@@ -145,7 +174,8 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
               profileId={profile.id}
               onSectionAdded={() => {
                 setShowTemplateSelector(false);
-                fetchSections();
+                // Explicitly call refetch to update the UI with the newly added section
+                refetch();
               }}
               onCancel={() => setShowTemplateSelector(false)}
             />
@@ -180,7 +210,7 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
             <>
               {/* Show sections when they exist */}
               {sortedSections.map((section) => (
-                <div key={section.id} className="relative mb-8 max-w-4xl w-full">
+                <div key={section.section_id} className="relative mb-8 max-w-4xl w-full">
                   {/* Timeline dot - semi-circle with shadow - improved responsive sizing */}
                   <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[85px] xl:left-[85px] 2xl:left-[85px] top-0 w-4 h-2 overflow-hidden z-10">
                     <div className="w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400 border-2 border-white dark:border-gray-800 shadow-md transform -translate-y-1/2"></div>
@@ -218,7 +248,16 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                           <IconButton
                             variant="transparent"
                             size="small"
-                            onClick={() => handleDeleteSection(section.id)}
+                            onClick={() => {
+                              console.log('Delete button clicked. Section data:', section);
+                              // Make sure we have a valid ID to delete
+                              if (section.section_id) {
+                                handleDeleteSection(section.section_id);
+                              } else {
+                                console.error('No valid section ID found for deletion');
+                                setError('Cannot delete section: Missing ID');
+                              }
+                            }}
                           >
                             <TrashIcon className="h-4 w-4 text-gray-500" />
                           </IconButton>
@@ -246,11 +285,16 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                           return (
                             <div className="flex items-center text-gray-700 dark:text-gray-300 mb-2">
                               <Calendar className="h-4 w-4 mr-2 text-gray-500" />
-                              <Text>
-                                {startDateField?.field_value || ''}
-                                {startDateField?.field_value && endDateField?.field_value ? ' - ' : ''}
-                                {endDateField?.field_value || ''}
-                              </Text>
+                              <div>
+                                <Text>
+                                  {startDateField?.field_label && <span className="font-medium">{startDateField.field_label}: </span>}
+                                  <span className="font-normal">
+                                    {startDateField?.field_value || ''}
+                                    {startDateField?.field_value && endDateField?.field_value ? ' - ' : ''}
+                                    {endDateField?.field_value || ''}
+                                  </span>
+                                </Text>
+                              </div>
                             </div>
                           );
                         }
@@ -266,22 +310,27 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                         !field.field_label.toLowerCase().includes('start') &&
                         !field.field_label.toLowerCase().includes('end')
                       ).map((field) => (
-                        <div key={field.id} className="flex items-center">
+                        <div key={field.field_id || `${section.section_id}-${field.field_key}`} className="flex items-center">
                           {getFieldIcon(field.field_key, field.field_value) && (
                             <div className="mr-2 text-gray-500">{getFieldIcon(field.field_key, field.field_value)}</div>
                           )}
-                          {field.field_value.match(/^(https?:\/\/)/i) ? (
-                            <a 
-                              href={field.field_value} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline"
-                            >
-                              {field.field_value}
-                            </a>
-                          ) : (
-                            <Text className="text-gray-700 dark:text-gray-300">{field.field_value}</Text>
-                          )}
+                          <div>
+                            <Text className="font-medium text-gray-700 dark:text-gray-300">
+                              {field.field_label}: {' '}
+                              {field.field_value.match(/^(https?:\/\/)/i) ? (
+                                <a 
+                                  href={field.field_value} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline font-normal"
+                                >
+                                  {field.field_value}
+                                </a>
+                              ) : (
+                                <span className="font-normal">{field.field_value}</span>
+                              )}
+                            </Text>
+                          </div>
                         </div>
                       ))}
                     </div>

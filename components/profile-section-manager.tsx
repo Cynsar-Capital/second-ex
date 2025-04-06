@@ -26,7 +26,7 @@ export function ProfileSectionManager({ profileId, isOwner }: ProfileSectionMana
   // Fetch sections on component mount
   useEffect(() => {
     fetchSections();
-  }, [profileId]);
+  },);
 
   // Fetch sections from the API
   const fetchSections = async () => {
@@ -39,7 +39,24 @@ export function ProfileSectionManager({ profileId, isOwner }: ProfileSectionMana
       }
       
       if (sectionsData) {
-        setSections(sectionsData);
+        // Transform the data to match the ProfileSection interface
+        const formattedSections: ProfileSection[] = sectionsData.map(section => ({
+          id: section.section_id,
+          profile_id: profileId,
+          title: section.title,
+          section_key: section.section_key,
+          fields: section.fields.map(field => ({
+            id: field.field_id,
+            section_id: section.section_id,
+            field_key: field.field_key,
+            field_label: field.field_label,
+            field_value: field.field_value,
+            field_type: field.field_type,
+            display_order: 0 // Default value since it might not be present in the API response
+          }))
+        }));
+        
+        setSections(formattedSections);
       }
     } catch (err) {
       console.error('Error fetching profile sections:', err);

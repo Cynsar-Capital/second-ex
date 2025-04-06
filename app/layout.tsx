@@ -4,6 +4,7 @@ import "./globals.css";
 import Footer from "@/components/footer";
 import { UserProvider } from "@/components/auth/user-provider";
 import { Toaster } from "@medusajs/ui";
+import QueryProvider from "@/lib/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,13 +21,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <UserProvider>
-          <main className="min-h-screen">
-            {children}
-          </main>
-          <Footer />
-          <Toaster />
-        </UserProvider>
+        <QueryProvider>
+          <UserProvider>
+            <main className="min-h-screen">
+              {children}
+            </main>
+            <Footer />
+            <Toaster />
+          </UserProvider>
+        </QueryProvider>
       </body>
     </html>
   );
