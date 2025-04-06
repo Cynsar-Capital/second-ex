@@ -60,39 +60,64 @@ export function ProfileRecommendations({ profileId }: ProfileRecommendationsProp
   }
   
   if (recommendations.length === 0) {
-    return null; // Don't show anything if there are no recommendations
+    return (
+      <div className="mt-8">
+        <div className="relative max-w-4xl w-full">
+          {/* Timeline dot - semi-circle with shadow - improved responsive sizing */}
+          <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[85px] xl:left-[85px] 2xl:left-[85px] top-0 w-4 h-2 overflow-hidden z-10">
+            <div className="w-4 h-4 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 shadow-md transform -translate-y-1/2"></div>
+          </div>
+          <div className="p-6 pt-8 mt-[-8px] bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm font-medium">Recommendations</h2>
+            </div>
+            <Text className="text-gray-600 dark:text-gray-300 mb-3">No recommendations yet</Text>
+            <Text className="text-sm text-gray-500 dark:text-gray-400">
+              Share your profile with friends and colleagues and ask them for recommendations
+            </Text>
+          </div>
+        </div>
+      </div>
+    );
   }
   
   return (
     <div className="mt-8">
-      <Heading level="h2" className="text-xl font-semibold mb-4">Recommendations</Heading>
       <div className="space-y-4">
-        {recommendations.map((recommendation) => (
-          <Container key={recommendation.id} className="p-4 shadow-sm border border-gray-200 dark:border-gray-700 rounded-lg">
-            <InlineTip label="Given by" variant="success">
-              
-            <div className="flex items-start">
-              <div className="flex-shrink-0 mr-4">
-                {recommendation.recommender_avatar ? (
-                  <Avatar 
-                    src={recommendation.recommender_avatar} 
-                    fallback={recommendation.recommender_name.charAt(0).toUpperCase()}
-                  />
-                ) : (
-                  <Avatar fallback={recommendation.recommender_name.charAt(0).toUpperCase()} />
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">{recommendation.recommender_name}</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                  {new Date(recommendation.created_at).toLocaleDateString()}
-                </div>
-                <Text className="whitespace-pre-wrap">{recommendation.recommendation_text}</Text>
-              </div>
+        <div className="relative max-w-4xl w-full">
+          {/* Timeline dot - semi-circle with shadow - improved responsive sizing */}
+          <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[85px] xl:left-[85px] 2xl:left-[85px] top-0 w-4 h-2 overflow-hidden z-10">
+            <div className="w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400 border-2 border-white dark:border-gray-800 shadow-md transform -translate-y-1/2"></div>
+          </div>
+          <div className="p-6 pt-8 mt-[-8px] bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm font-medium">Recommendations</h2>
             </div>
-            </InlineTip>
-          </Container>
-        ))}
+            {recommendations.map((recommendation) => (
+              <div key={recommendation.id} className="mb-4 pb-4 divide-y py-0 border-b border-gray-200 dark:border-gray-700 last:border-b-0 last:mb-0 last:pb-0">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0 mr-4">
+                    {recommendation.recommender_avatar ? (
+                      <Avatar 
+                        src={recommendation.recommender_avatar} 
+                        fallback={recommendation.recommender_name.charAt(0).toUpperCase()}
+                      />
+                    ) : (
+                      <Avatar fallback={recommendation.recommender_name.charAt(0).toUpperCase()} />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">{recommendation.recommender_name}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      {new Date(recommendation.created_at).toLocaleDateString()}
+                    </div>
+                    <Text className="whitespace-pre-wrap">{recommendation.recommendation_text}</Text>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

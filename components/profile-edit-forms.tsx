@@ -662,31 +662,33 @@ export const ProfileEditForms = ({
     <form id="profile-edit-form" onSubmit={handleSubmit} onClick={handleFormClick} className="flex flex-col h-full">
       <FocusModal.Header>
         <div className="flex justify-between w-full">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button 
-            variant="primary" 
-            type="submit" 
-            disabled={isUploading}
-          >
-            {isUploading ? "Uploading..." : "Save Changes"}
-          </Button>
+          <Text className="text-xl font-bold px-4 sm:px-0">{title}</Text>
         </div>
       </FocusModal.Header>
       
-      <FocusModal.Body className="flex flex-col items-center py-8 overflow-y-auto">
-        <div className="flex w-full max-w-lg flex-col gap-y-8">
-          <div className="flex flex-col gap-y-1">
-            <Text className="text-xl font-bold">{title}</Text>
-            {subtitle && (
+      <FocusModal.Body className="flex flex-col items-center py-4 sm:py-8 overflow-y-auto px-4 sm:px-6">
+        <div className="flex w-full max-w-md sm:max-w-lg mx-auto flex-col gap-y-6 sm:gap-y-8">
+          {subtitle && (
+            <div className="flex flex-col gap-y-1">
               <Text className="text-ui-fg-subtle">{subtitle}</Text>
-            )}
-          </div>
+            </div>
+          )}
           
           <div className="flex flex-col gap-y-4">
             {form}
           </div>
         </div>
       </FocusModal.Body>
+      <FocusModal.Footer className="border-t border-gray-200 p-4 flex justify-end">
+        <Button 
+          variant="primary" 
+          type="submit" 
+          disabled={isUploading}
+          className="w-full sm:w-auto"
+        >
+          {isUploading ? "Uploading..." : "Save Changes"}
+        </Button>
+      </FocusModal.Footer>
     </form>
   );
 };

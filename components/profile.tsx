@@ -10,6 +10,7 @@ import { ProfileRecommendations } from "./profile-recommendations";
 import { useEffect, useState } from "react";
 import {  getCurrentUser, getSession, onAuthStateChange } from "@/supabase/utils";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 // Define work experience item type
 type WorkExperience = {
@@ -201,9 +202,12 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
       {/* Background pattern */}
       <div className="absolute inset-0 opacity-20 bg-[url(/grid.svg)] bg-center"></div>
       
+      {/* Timeline dashed line - improved responsive sizing */}
+      <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[390px] xl:left-[390px] 2xl:left-[390px] top-72 bottom-8 border-l-2 border-dashed border-gray-300 dark:border-gray-600 z-0"></div>
+      
       {/* Profile header with background image */}
       <div className="space-y-8 max-w-4xl w-full relative pt-10 px-4 sm:px-0">
-        <div className="relative w-full h-48 sm:h-64 rounded-xl overflow-hidden mb-16">
+        <div className="relative w-full h-48 sm:h-56 md:h-64 lg:h-72 rounded-xl overflow-hidden mb-12 sm:mb-14 md:mb-16 lg:mb-20">
           {/* Cover image - can be customized per user */}
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 opacity-80"></div>
           <div 
@@ -215,25 +219,35 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
             }}
           ></div>
           
-          {/* Avatar positioned at bottom of cover image */}
-          <div className="absolute -bottom-12 left-6 sm:left-10">
-            <Avatar
-              size="xlarge"
-              src={userData.avatar}
-              fallback={userData.name.charAt(0) || "U"}
-              className="sm:h-40 sm:w-40 ring-4 ring-white dark:ring-slate-800 shadow-lg"
-            />
+          {/* Avatar positioned on the cover image */}
+          <div className="absolute bottom-[10%] xs:bottom-[10%] sm:bottom-[10%] md:bottom-[10%] lg:bottom-[5%] left-4 sm:left-6 md:left-8 lg:left-10 z-20">
+            <div className="rounded-lg overflow-hidden border-4 border-white dark:border-slate-800 shadow-lg h-28 w-28 xs:h-32 xs:w-32 sm:h-36 sm:w-36 md:h-40 md:w-40 lg:h-44 lg:w-44 relative">
+              {userData.avatar ? (
+                <Image
+                  src={userData.avatar}
+                  alt={userData.name || "User avatar"}
+                  fill
+                  sizes="(max-width: 640px) 7rem, (max-width: 768px) 9rem, (max-width: 1024px) 10rem, 11rem"
+                  priority
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-blue-500 text-white text-4xl font-bold">
+                  {userData.name.charAt(0) || "U"}
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Name, username and subscribe/follow buttons */}
-          <div className="absolute bottom-4 left-32 sm:left-56 right-4 flex justify-between items-end">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white drop-shadow-md truncate pr-4">{userData.name}</h1>
+          <div className="absolute bottom-4 left-36 xs:left-44 sm:left-52 md:left-60 lg:left-64 right-4 flex flex-col sm:flex-row sm:justify-between sm:items-end">
+            <div className="mb-2 sm:mb-0">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white drop-shadow-md truncate pr-4">{userData.name}</h1>
               {userData.username && (
-                <p className="text-sm text-white/80 drop-shadow-md">@{userData.username}</p>
+                <p className="text-xs sm:text-sm text-white/80 drop-shadow-md">@{userData.username}</p>
               )}
             </div>
-            <div className="flex-shrink-0 flex gap-2">
+            <div className="flex-shrink-0 flex gap-2 mt-2 sm:mt-0">
               {!isProfileOwner && profile && (
                 <Button 
                   onClick={() => router.push(`${window.location.pathname}?type=follow`)}
@@ -255,12 +269,16 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
           </div>
         </div>
         
-        <Container className="mb-8">
-          <div className="p-6  bg-white dark:bg-slate-800">
+        <div className="relative mb-8 max-w-4xl w-full">
+          {/* Timeline dot - semi-circle with shadow - improved responsive sizing */}
+          <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[85px] xl:left-[85px] 2xl:left-[85px] top-0 w-4 h-2 overflow-hidden z-10">
+            <div className="w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400 border-2 border-white dark:border-gray-800 shadow-md transform -translate-y-1/2"></div>
+          </div>
+          <div className="p-6 pt-8 mt-[-8px] bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 w-full">
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-sm font-medium">Profile Information</h2>
-                {isProfileOwner ? (
+                {isProfileOwner && (
                   <DropdownMenu>
                     <DropdownMenu.Trigger asChild>
                       <IconButton variant="transparent" size="small">
@@ -274,17 +292,10 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
                       </DropdownMenu.Item>
                     </DropdownMenu.Content>
                   </DropdownMenu>
-                ) : (
-                  <TooltipProvider>
-                  <Tooltip content="Login to edit profile">
-                    <IconButton variant="transparent" size="small" onClick={() => (document.querySelector('.drawer-trigger') as HTMLElement)?.click()}>
-                      <PencilSquare className="text-ui-fg-subtle h-4 w-4" />
-                    </IconButton>
-                  </Tooltip>
-                  </TooltipProvider>
                 )}
               </div>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                 {userData.fields.filter(([_, value]) => value).map(([field, value]: [string, string]) => (
                   <div key={field} className="mt-2">
                     <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">{field}</dt>
@@ -308,7 +319,7 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
             </div>
             
             <div>
-              <div className="py-6">
+              <div className="py-6 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-sm font-medium">About</h2>
                   {isProfileOwner && (
@@ -331,7 +342,7 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
               </div>
             </div>
           </div>
-        </Container>
+        </div>
 
         {/* Work section removed - now handled by ProfileCustomSections */}
         
@@ -346,9 +357,7 @@ const ProfileComponent = ({ profile, isOwner: isOwnerProp = false }: ProfileComp
         
         {/* Recommendations Section */}
         {profile && (
-          <Container className="mt-8">
-            <ProfileRecommendations profileId={profile.id} />
-          </Container>
+          <ProfileRecommendations profileId={profile.id} />
         )}
 
       </div>

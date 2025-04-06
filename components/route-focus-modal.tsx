@@ -415,26 +415,31 @@ export function RouteFocusModal({ profile }: RouteFocusModalProps) {
           username={profile?.username} 
         />
       ) : modalType === 'sections' ? (
-        <FocusModal.Content style={{ zIndex: 50, display: 'flex', flexDirection: 'column', height: '90vh' }}>
+        <FocusModal.Content className="max-w-3xl mx-auto" style={{ zIndex: 9999, display: 'flex', flexDirection: 'column', height: '90vh', width: '100%' }}>
           <FocusModal.Header>
-            <h2 className="text-xl font-semibold">Customize Profile Sections</h2>
+            <h2 className="text-xl font-semibold px-4 sm:px-0">Customize Profile Sections</h2>
           </FocusModal.Header>
-          <FocusModal.Body className="flex-1 overflow-y-auto p-4">
-            <ProfileSectionEditor
-              profileId={profile.id}
-              initialSections={profile.profile_sections || {}}
-              onSave={handleFormSubmit}
-            />
-          </FocusModal.Body>
-          <FocusModal.Footer className="border-t border-gray-200 p-4">
-            <div className="flex justify-between w-full">
-              <Button variant="secondary" onClick={handleClose}>Cancel</Button>
-              <Button form="profile-sections-form" type="submit">Save Changes</Button>
+          <FocusModal.Body className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="max-w-2xl mx-auto w-full">
+              <ProfileSectionEditor
+                profileId={profile.id}
+                initialSections={profile.profile_sections || {}}
+                onSave={handleFormSubmit}
+              />
             </div>
+          </FocusModal.Body>
+          <FocusModal.Footer className="border-t border-gray-200 p-4 flex justify-end">
+            <Button 
+              form="profile-sections-form" 
+              type="submit"
+              className="w-full sm:w-auto"
+            >
+              Save Changes
+            </Button>
           </FocusModal.Footer>
         </FocusModal.Content>
       ) : (
-        <FocusModal.Content style={{ zIndex: 50, display: 'flex', flexDirection: 'column', height: '90vh', overflow: 'hidden' }}>
+        <FocusModal.Content className="max-w-3xl mx-auto" style={{ zIndex: 9999, display: 'flex', flexDirection: 'column', height: '90vh', width: '100%', overflow: 'hidden' }}>
           <ProfileEditForms
             open={isOpen}
             onClose={handleClose}

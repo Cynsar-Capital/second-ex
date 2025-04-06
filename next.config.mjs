@@ -10,6 +10,14 @@ const nextConfig = {
         protocol: "https",
         hostname: "saranshsharma.me",
       },
+      {
+        protocol: "http",
+        hostname: "127.0.0.1",
+      },
+      {
+        protocol: "https",
+        hostname: "hhzgsmcrravcaxbjeelg.supabase.co",
+      },
     ],
   },
 };

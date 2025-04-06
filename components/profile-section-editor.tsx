@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Button, Input, Label, Text, Textarea, Select } from "@medusajs/ui";
+import { Button, Input, Label, Text, Textarea, Select, DatePicker } from "@medusajs/ui";
 import { PlusIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from "@heroicons/react/24/outline";
 import { 
   createProfileSection, 
@@ -517,6 +517,17 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
                         placeholder="Field Value"
                         rows={3}
                       />
+                    ) : field.type === 'date' ? (
+                      <DatePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) => {
+                          updateField(section.id, field.id, { 
+                            value: date ? date.toISOString().split('T')[0] : '' 
+                          });
+                        }}
+                        className="z-[9999]"
+                        aria-label={`${field.label || 'Field'} date`}
+                      />
                     ) : (
                       <Input
                         id={`${field.id}-value`}
@@ -524,6 +535,7 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
                         value={field.value}
                         onChange={(e) => updateField(section.id, field.id, { value: e.target.value })}
                         placeholder="Field Value"
+                        aria-label={`${field.label || 'Field'} value`}
                       />
                     )}
                   </div>
@@ -532,8 +544,9 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
                     <Select 
                       value={field.type}
                       onValueChange={(value) => updateField(section.id, field.id, { type: value as Field['type'] })}
+                      aria-label={`${field.label || 'Field'} type`}
                     >
-                      <Select.Trigger>
+                      <Select.Trigger aria-label={`${field.label || 'Field'} type selector`}>
                         <Select.Value placeholder="Field Type" />
                       </Select.Trigger>
                       <Select.Content>
@@ -631,6 +644,17 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
                         placeholder="Field Value"
                         rows={3}
                       />
+                    ) : field.type === 'date' ? (
+                      <DatePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) => {
+                          updateFieldInNewSection(field.id, { 
+                            value: date ? date.toISOString().split('T')[0] : '' 
+                          });
+                        }}
+                        className="z-[9999]"
+                        aria-label={`${field.label || 'Field'} date`}
+                      />
                     ) : (
                       <Input
                         id={`${field.id}-value`}
@@ -638,6 +662,7 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
                         value={field.value}
                         onChange={(e) => updateFieldInNewSection(field.id, { value: e.target.value })}
                         placeholder="Field Value"
+                        aria-label={`${field.label || 'Field'} value`}
                       />
                     )}
                   </div>
@@ -646,8 +671,9 @@ export function ProfileSectionEditor({ profileId, initialSections = {}, onSave }
                     <Select 
                       value={field.type}
                       onValueChange={(value) => updateFieldInNewSection(field.id, { type: value as Field['type'] })}
+                      aria-label={`${field.label || 'Field'} type`}
                     >
-                      <Select.Trigger>
+                      <Select.Trigger aria-label={`${field.label || 'Field'} type selector`}>
                         <Select.Value placeholder="Field Type" />
                       </Select.Trigger>
                       <Select.Content>

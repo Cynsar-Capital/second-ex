@@ -1,6 +1,17 @@
 @tailwind base;
   @tailwind components;
   @tailwind utilities;
+  
+  /* Fix for date picker z-index issues */
+  .rdp {
+    position: relative;
+    z-index: 9999 !important;
+  }
+  
+  /* Ensure date picker appears above all other elements */
+  [role="dialog"] {
+    z-index: 9999 !important;
+  }
 
   @layer base {
     :root {

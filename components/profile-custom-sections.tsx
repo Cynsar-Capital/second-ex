@@ -153,8 +153,12 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
           
           {/* Empty state when no sections exist */}
           {sections.length === 0 ? (
-            <Container className="mb-8">
-              <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center bg-white dark:bg-slate-800">
+            <div className="relative mb-8 max-w-4xl w-full">
+              {/* Timeline dot - semi-circle with shadow - improved responsive sizing */}
+              <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[85px] xl:left-[85px] 2xl:left-[85px] top-0 w-4 h-2 overflow-hidden z-10">
+                <div className="w-4 h-4 rounded-full bg-gray-300 dark:bg-gray-600 border-2 border-white dark:border-gray-800 shadow-md transform -translate-y-1/2"></div>
+              </div>
+              <div className="p-6 pt-8 mt-[-8px] border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center bg-white dark:bg-slate-800 shadow-sm w-full">
                 <div className="flex flex-col items-center justify-center space-y-3">
                   <div className="bg-gray-100 dark:bg-gray-700 rounded-full p-3">
                     <PlusIcon className="h-6 w-6 text-gray-500 dark:text-gray-400" />
@@ -171,13 +175,17 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                   )}
                 </div>
               </div>
-            </Container>
+            </div>
           ) : (
             <>
               {/* Show sections when they exist */}
               {sortedSections.map((section) => (
-                <Container key={section.id} className="mb-8">
-                  <div className="p-6 bg-white dark:bg-slate-800 rounded-lg">
+                <div key={section.id} className="relative mb-8 max-w-4xl w-full">
+                  {/* Timeline dot - semi-circle with shadow - improved responsive sizing */}
+                  <div className="absolute left-[43px] sm:left-[65px] md:left-[75px] lg:left-[85px] xl:left-[85px] 2xl:left-[85px] top-0 w-4 h-2 overflow-hidden z-10">
+                    <div className="w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400 border-2 border-white dark:border-gray-800 shadow-md transform -translate-y-1/2"></div>
+                  </div>
+                  <div className="p-6 pt-8 mt-[-8px] bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 w-full">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <Heading level="h2" className="text-xl font-semibold mb-2">{section.title}</Heading>
@@ -278,7 +286,7 @@ export function ProfileCustomSections({ profile, isOwner, onEditSection }: Profi
                       ))}
                     </div>
                   </div>
-                </Container>
+                </div>
               ))}
               
               {/* Add section button for owners when at least one section exists */}
