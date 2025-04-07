@@ -4,7 +4,7 @@ import { Button, Drawer, Text, Tabs, Avatar, Badge, Heading } from "@medusajs/ui
 import { useState, useEffect, useCallback } from "react";
 import { signOut, supabase } from "@/supabase/utils";
 import Link from "next/link";
-import { PlusIcon, UserIcon, MailIcon, GlobeIcon } from "lucide-react";
+import { PlusIcon, MailIcon, GlobeIcon } from "lucide-react";
 import { SignInForm, SignUpForm } from "./auth-forms";
 import { ProfileData } from "@/types/profile";
 

@@ -42,7 +42,10 @@ export function SignupDrawer({
 
   const handleAuthSuccess = () => {
     console.log('Auth success, closing drawer');
+
     setOpen(false);
+    // Route to profile
+    window.location.href = "/";
   };
 
   const getButtonVariant = () => {

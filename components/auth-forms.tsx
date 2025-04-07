@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, Label, Text } from "@medusajs/ui";
-import { signIn, signUp, supabase, setCrossDomainCookies } from "@/supabase/utils";
+import { signIn, signUp, supabase } from "@/supabase/utils";
 
 interface AuthFormProps {
   onSuccess?: () => void;
@@ -19,110 +19,51 @@ export function SignInForm({ onSuccess, onToggle }: AuthFormProps): JSX.Element 
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
-    console.log('Attempting to sign in with:', email);
 
     try {
-      // Sign in with email and password
       const { data, error } = await signIn(email, password);
       
-      console.log('Sign in response:', { data, error });
-      
       if (error) {
-        console.error('Sign in error:', error);
         setError(error.message);
         setLoading(false);
         return;
       }
       
-      if (data?.session) {
-        console.log('Authentication successful, session created');
-        
-        // Set the session directly first
-        // await supabase.auth.setSession({
-        //   access_token: data.session.access_token,
-        //   refresh_token: data.session.refresh_token,
-        // });
-        
-        // Store session in localStorage as a backup
-        localStorage.setItem('supabase.auth.token', JSON.stringify({
-          currentSession: data.session,
-          expiresAt: Math.floor(Date.now() / 1000) + (data.session.expires_in || 3600)
-        }));
-        
-        // Trigger any success callbacks
-        if (onSuccess) {
-          console.log('Calling onSuccess callback');
-          onSuccess();
-        }
-        
-        // Get the authenticated user data first
-        try {
-          const { data: { user }, error: userError } = await supabase.auth.getUser();
-          
-          if (userError) {
-            console.error('Error getting authenticated user:', userError);
-            setError('Error getting user data: ' + userError.message);
-            return;
-          }
-          
-          if (!user) {
-            console.error('No user found after authentication');
-            setError('Authentication failed: No user found');
-            return;
-          }
-          
-          console.log('Authentication successful with user:', user.id);
-          
-          // Now fetch the user profile from the profiles table
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-          
-          if (profileError && profileError.code !== 'PGRST116') {
-            console.error('Error fetching user profile:', profileError);
-            setError('Error fetching profile: ' + profileError.message);
-          }
-          
-          // Combine user and profile data
-          const userData = {
-            ...user,
-            profile: profile || null
-          };
-          
-          console.log('User data with profile:', userData);
-          
-          // Dispatch a custom event to notify components that auth state changed
-          console.log('Dispatching auth-state-changed event');
-          window.dispatchEvent(new CustomEvent('auth-state-changed', { 
-            detail: { event: 'SIGNED_IN', user: userData }
-          }));
-          
-          // Call onSuccess to close the drawer
-          if (onSuccess) {
-            console.log('Calling onSuccess to close the drawer');
-            onSuccess();
-          }
-          
-          // Refresh the page to show the user profile
-          console.log('Authentication complete, refreshing page to show profile');
-          window.location.reload();
-        } catch (error) {
-          console.error('Error during authentication:', error);
-          setError('Error during authentication: ' + (error instanceof Error ? error.message : String(error)));
-        } finally {
-          // Always set loading to false, regardless of success or failure
-          setLoading(false);
-        }
-      } else {
-        console.error('No session data returned from sign in');
+      if (!data?.session) {
         setError("Authentication successful but no session was created. Please try again.");
         setLoading(false);
+        return;
       }
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        setError(userError?.message || 'Authentication failed: No user found');
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      const userData = {
+        ...user,
+        profile: profile || null
+      };
+
+      window.dispatchEvent(new CustomEvent('auth-state-changed', { 
+        detail: { event: 'SIGNED_IN', user: userData }
+      }));
+
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      window.location.reload();
     } catch (err) {
-      console.error('Unexpected error during sign in:', err);
       setError("An unexpected error occurred");
       setLoading(false);
     }

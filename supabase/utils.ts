@@ -1,4 +1,5 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createBrowserClient, createServerClient } from '@supabase/ssr'
+import { NextRequest, NextResponse } from 'next/server';
 
 // Create a single supabase client for the entire application
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -14,24 +15,24 @@ const COOKIE_DOMAIN = typeof window !== 'undefined'
 
 // Client-side Supabase client with consistent storage configuration
 // Using localStorage to avoid cookie parsing issues
-export const supabase = createBrowserClient(supabaseUrl, supabaseKey, {
+export const supabase =  createBrowserClient(supabaseUrl, supabaseKey, {
   // Persist sessions using localStorage instead of cookies
   // This avoids issues with cookie parsing and session management
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    // Use localStorage for client-side authentication instead of cookies
-    storageKey: 'supabase.auth.token',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined
-  },
-  // Keep these cookie options for non-auth related features
-  cookieOptions: {
-    domain: COOKIE_DOMAIN,
-    maxAge: 3600 * 24 * 7, // 7 days
-    path: '/',
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  }
+  // auth: {
+  //   persistSession: true,
+  //   autoRefreshToken: true,
+  //   // Use localStorage for client-side authentication instead of cookies
+  //   storageKey: 'supabase.auth.token',
+  //   storage: typeof window !== 'undefined' ? window.localStorage : undefined
+  // },
+  // // Keep these cookie options for non-auth related features
+  // cookieOptions: {
+  //   domain: COOKIE_DOMAIN,
+  //   maxAge: 3600 * 24 * 7, // 7 days
+  //   path: '/',
+  //   sameSite: 'lax',
+  //   secure: process.env.NODE_ENV === 'production',
+  // }
 })
 
 // Auth helper functions
@@ -45,6 +46,7 @@ export const signUp = async (email: string, password: string) => {
 }
 
 export const signIn = async (email: string, password: string) => {
+  
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -103,56 +105,58 @@ export const onAuthStateChange = (callback: (event: any, session: any) => void) 
   return supabase.auth.onAuthStateChange(callback)
 }
 
-// Function to set cookies across domains (main domain and subdomains)
-export async function setCrossDomainCookies(session: any) {
-  if (!session) {
-    console.error('No session provided to setCrossDomainCookies');
-    return { success: false, error: 'No session provided' };
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({
+    request,
+  })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+  // Do not run code between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
+  // IMPORTANT: DO NOT REMOVE auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (
+    !user &&
+    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/auth')
+  ) {
+    // no user, potentially respond by redirecting the user to the login page
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
-  
-  try {
-    console.log('Setting cross-domain cookies');
-    
-    // Set the session in Supabase
-    // This will automatically set cookies with the proper domain
-    // thanks to our cookieOptions configuration
-    const { error } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
-    
-    if (error) {
-      console.error('Error setting session:', error);
-      return { success: false, error: error.message };
-    }
-    
-    // Verify the user is properly authenticated using getUser (more secure)
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error('Error verifying user authentication:', userError);
-      return { success: false, error: userError.message };
-    }
-    
-    if (!user) {
-      console.error('No authenticated user found after setting session');
-      return { success: false, error: 'Authentication failed: No user found' };
-    }
-    
-    console.log('User authenticated successfully:', user.id);
-    
-    // Store in localStorage as a backup
-    localStorage.setItem('supabase.auth.token', JSON.stringify({
-      currentSession: session,
-      expiresAt: Math.floor(Date.now() / 1000) + (session.expires_in || 3600)
-    }));
-    
-    // Log success message
-    console.log('Session set successfully with domain:', COOKIE_DOMAIN);
-    
-    return { success: true, user };
-  } catch (error) {
-    console.error('Error in setCrossDomainCookies:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
-  }
+  // IMPORTANT: You *must* return the supabaseResponse object as it is.
+  // If you're creating a new response object with NextResponse.next() make sure to:
+  // 1. Pass the request in it, like so:
+  //    const myNewResponse = NextResponse.next({ request })
+  // 2. Copy over the cookies, like so:
+  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
+  // 3. Change the myNewResponse object to fit your needs, but avoid changing
+  //    the cookies!
+  // 4. Finally:
+  //    return myNewResponse
+  // If this is not done, you may be causing the browser and server to go out
+  // of sync and terminate the user's session prematurely!
+  return supabaseResponse
 }

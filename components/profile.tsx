@@ -1,9 +1,9 @@
 // components/ProfileComponent.js
 "use client";
-import { Avatar, Container, DropdownMenu, IconButton, Button, Tooltip, TooltipProvider } from "@medusajs/ui"
+import {  DropdownMenu, IconButton, Button, Tooltip, TooltipProvider } from "@medusajs/ui"
 import { ProfileCustomSections } from "./profile-custom-sections";
 import {  PencilSquare } from "@medusajs/icons"
-import { useProfile, useProfileByUsername } from "@/lib/hooks/use-profile"
+import { useProfile } from "@/lib/hooks/use-profile"
 import { SubscribeDrawer } from "./subs";
 import { ProfileDrawer } from "./profile-drawer";
 import { ProfileRecommendations } from "./profile-recommendations";

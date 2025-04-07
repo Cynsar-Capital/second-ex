@@ -9,18 +9,19 @@ import { SignupDrawer } from '@/components/signup-drawer';
 // Icons
 import { CheckIcon } from 'lucide-react';
 
+
 export default async function HomePage() {
   const supabase = createServerSupabaseClient();
   
   // Get the current user's session
-  const { data: { session } } = await supabase.auth.getSession();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+
   // If user is logged in, try to get their profile
-  if (session) {
+  if (user) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single();
     
     if (profile) {

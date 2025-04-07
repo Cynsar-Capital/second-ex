@@ -9,8 +9,6 @@ interface LoadingModalProps {
 }
 
 export function LoadingModal({
-  isOpen,
-  onClose,
   message = "Loading your profile data..."
 }: LoadingModalProps) {
   return (
