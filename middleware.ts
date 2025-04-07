@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  await updateSession(request)
+  //await updateSession(request)
 
   try {
     // Initialize Supabase client with proper cookie handling
@@ -98,14 +98,14 @@ export async function middleware(request: NextRequest) {
     // Refresh session if available
     const { data: { user }, error: sessionError } = await supabase.auth.getUser()
     
-    if (sessionError) {
-      console.log('Error refreshing session in middleware:', sessionError)
-    } else {
-      console.log('Middleware session state:', user ? 'Authenticated' : 'Not authenticated')
-      if (user) {
-        console.log('Session user ID:', user.id)
-      }
-    }
+    // if (sessionError) {
+    //   console.log('Error refreshing session in middleware:', sessionError)
+    // } else {
+    //   console.log('Middleware session state:', user ? 'Authenticated' : 'Not authenticated')
+    //   if (user) {
+    //     console.log('Session user ID:', user.id)
+    //   }
+    // }
 
     // Handle subdomain routing
     if (isSubdomain) {
