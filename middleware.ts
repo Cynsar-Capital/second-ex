@@ -99,7 +99,7 @@ export async function middleware(request: NextRequest) {
     const { data: { user }, error: sessionError } = await supabase.auth.getUser()
     
     if (sessionError) {
-      console.error('Error refreshing session in middleware:', sessionError)
+      console.log('Error refreshing session in middleware:', sessionError)
     } else {
       console.log('Middleware session state:', user ? 'Authenticated' : 'Not authenticated')
       if (user) {
