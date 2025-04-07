@@ -45,7 +45,7 @@ type ProfileData = {
 const defaultProfile = {
   full_name: "User Profile",
   email: "",
-  avatar_url: "/profile-placeholder.png",
+  avatar_url: "https://i.pravatar.cc/300",
   bio: "This user hasn't added a bio yet.",
   fields: [
     ["Username", ""],
