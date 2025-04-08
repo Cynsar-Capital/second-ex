@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabase, updateSession } from './supabase/utils'
 
 function copyCookiesWithDomains(
-  fromRequest: NextRequest,  // Changed from NextResponse to NextRequest
+  fromRequest: NextRequest,
   toResponse: NextResponse,
   domains: string[]
 ) {
@@ -10,23 +10,32 @@ function copyCookiesWithDomains(
   
   // Get cookies from the request (not response)
   const cookies = fromRequest.cookies.getAll();
-  console.log('Cookies to copy:', cookies.map(c => ({ name: c.name })));
+  console.log('Cookies to copy:', cookies.map(c => ({ name: c.name, value: c.value.substring(0, 10) + '...' })));
+
+  // Check if this is a sign-out request (auth cookie exists but is being deleted)
+  const authCookie = cookies.find(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'));
+  if (authCookie && authCookie.value === '') {
+    console.log('Sign-out detected, skipping cookie copy');
+    return;
+  }
 
   cookies.forEach(cookie => {
     if (cookie.name.startsWith('sb-')) {
-      // For auth cookies, set for all applicable domains
-      domains.forEach(domain => {
-        toResponse.cookies.set({
-          name: cookie.name,
-          value: cookie.value,
-          domain,
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7, // 7 days for auth cookies
-          httpOnly: true,
+      // Only copy auth cookies if they have a value
+      if (cookie.value) {
+        domains.forEach(domain => {
+          toResponse.cookies.set({
+            name: cookie.name,
+            value: cookie.value,
+            domain,
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            path: '/',
+            maxAge: 60 * 60 * 24 * 7, // 7 days for auth cookies
+            httpOnly: true,
+          });
         });
-      });
+      }
     } else {
       // For non-auth cookies, copy as is
       toResponse.cookies.set({
@@ -50,24 +59,28 @@ function getDomainSettings(hostname: string) {
   // For production, we use .2nd.exchange to share cookies across subdomains
   const domains = isLocalhost ? [''] : ['.2nd.exchange']
   
+  // Get the base host for the current environment
+  const baseHost = isLocalhost ? 'localhost' : '2nd.exchange'
+  
+  // If it's a subdomain, get the username part
+  const username = isSubdomain ? hostname.split('.')[0] : ''
+  
+  // Construct the full hostname in username.host format
+  const formattedHostname = isSubdomain ? `${username}.${baseHost}` : baseHost
+  
   console.log('Domain settings:', {
     isLocalhost,
     isSubdomain,
-    hostname,
-    domains
+    hostname: formattedHostname,
+    domains,
+    username
   })
-  
-  // For subdomains in local dev, we need to handle both the subdomain cookie and root domain cookie
-  if (isLocalhost && isSubdomain) {
-    const rootDomain = '.' + hostname.split('.').slice(-2).join('.')
-    domains.push(rootDomain)  // e.g. ['.localhost']
-  }
 
   return {
     domains,
     isLocalhost,
     isSubdomain,
-    host: hostname
+    host: formattedHostname
   }
 }
 
