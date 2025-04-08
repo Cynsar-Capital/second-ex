@@ -46,57 +46,75 @@ function getDomainSettings(hostname: string) {
     ? hostname.split('.').length > 1 && !hostname.startsWith('www')
     : hostname.split('.').length > 2 && !hostname.startsWith('www')
 
-  // For local development, use .localhost for proper subdomain testing
-  const rootDomain = isLocalhost ? 'localhost' : '.2nd.exchange'
+  // For local development, we don't use a domain prefix for cookies
+  // For production, we use .2nd.exchange to share cookies across subdomains
+  const domains = isLocalhost ? [''] : ['.2nd.exchange']
   
-  // For subdomains in local dev, we need to handle both the subdomain cookie and root domain cookie
-  const domains = isLocalhost && isSubdomain 
-    ? [hostname, rootDomain]  // e.g. ['test.localhost', '.localhost']
-    : [rootDomain]            // e.g. ['.2nd.exchange']
-
-  return {
+  console.log('Domain settings:', {
     isLocalhost,
     isSubdomain,
+    hostname,
+    domains
+  })
+  
+  // For subdomains in local dev, we need to handle both the subdomain cookie and root domain cookie
+  if (isLocalhost && isSubdomain) {
+    const rootDomain = '.' + hostname.split('.').slice(-2).join('.')
+    domains.push(rootDomain)  // e.g. ['.localhost']
+  }
+
+  return {
     domains,
+    isLocalhost,
+    isSubdomain,
     host: hostname
   }
 }
 
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
   const url = request.nextUrl.clone()
   const hostname = request.headers.get('host') || ''
   const { domains, isLocalhost, isSubdomain } = getDomainSettings(hostname)
-  if (isSubdomain){
+
+  if (isSubdomain) {
     const username = hostname.split('.')[0]
+    console.log('Processing subdomain request:', { username, hostname })
+
     if (username === 'www') {
-      return response
+      return NextResponse.next()
     }
+
     const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', username)
-        .single()
-      
+      .from('profiles')
+      .select('id, username')
+      .eq('username', username)
+      .single()
+    
     if (profileError || !profile) {
+      console.log('Profile not found:', { username, error: profileError })
       url.pathname = '/404'
-      const rewriteResponse = NextResponse.rewrite(url)
-      return rewriteResponse
-    } else {
-      url.pathname = '/profile'
-      url.searchParams.set('username', username)
-      copyCookiesWithDomains(request, response, domains)
-      const rewriteResponse = NextResponse.rewrite(url)
-      return rewriteResponse
+      return NextResponse.rewrite(url)
     }
+
+    console.log('Profile found:', { username, profileId: profile.id })
+    url.pathname = '/profile'
+    url.searchParams.set('username', username)
+    
+    const rewriteResponse = NextResponse.rewrite(url)
+    copyCookiesWithDomains(request, rewriteResponse, domains)
+    
+    console.log('Rewriting to profile with cookies:', { 
+      pathname: url.pathname, 
+      cookies: rewriteResponse.cookies.getAll().map(c => ({ 
+        name: c.name, 
+        domain: c.domain 
+      }))
+    })
+    
+    return rewriteResponse
   }
-  //response.cookies.set('name', 'value')
-  //copyCookiesWithDomains(request, response, domains)
+
   return await updateSession(request)
   
 }
