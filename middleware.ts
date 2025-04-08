@@ -117,13 +117,13 @@ export async function middleware(request: NextRequest) {
     const rewriteResponse = NextResponse.rewrite(url)
     // Before we copy cookies we check if the user has a valid auth 
     const { data: user } = await supabase.auth.getUser();
-    if (!user){
+    console.log(user)
+    if (user.user === null){
       // we are not copying anything 
       console.log('We dont copy any cookie, since there is no user')
     } else {
       copyCookiesWithDomains(request, rewriteResponse, domains)
     }
-    
     
     console.log('Rewriting to profile with cookies:', { 
       pathname: url.pathname, 
