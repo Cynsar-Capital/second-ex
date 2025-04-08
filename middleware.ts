@@ -15,16 +15,24 @@ export const config = {
 function getDomainSettings(hostname: string) {
   const isLocalhost = hostname.includes('localhost') || hostname.includes('127.0.0.1')
   const isSubdomain = isLocalhost 
-    ? hostname.split('.').length > 1 && !hostname.startsWith('www')
-    : hostname.split('.').length > 2 && !hostname.startsWith('www')
+    ? hostname.split('.').length > 1
+    : hostname.split('.').length > 2
 
   // For local development, use .localhost for proper subdomain testing
   const rootDomain = isLocalhost ? '.localhost' : '.2nd.exchange'
   
-  // For subdomains in local dev, we need to handle both the subdomain cookie and root domain cookie
-  const domains = isLocalhost && isSubdomain 
-    ? [hostname, rootDomain]  // e.g. ['test.localhost', '.localhost']
-    : [rootDomain]            // e.g. ['.2nd.exchange']
+  // Handle cookie domains based on hostname
+  let domains: string[]
+  if (hostname.startsWith('www.')) {
+    // Special case for www - set cookies for both www and root domain
+    domains = [hostname, rootDomain]
+  } else if (isSubdomain) {
+    // For other subdomains, set cookies for both subdomain and root domain
+    domains = [hostname, rootDomain]
+  } else {
+    // For root domain, just set the root domain cookie
+    domains = [rootDomain]
+  }
 
   return {
     isLocalhost,
@@ -35,49 +43,20 @@ function getDomainSettings(hostname: string) {
 }
 
 /**
- * Helper function to copy cookies from response to rewrite/redirect response
- * Handles domain-specific cookie settings for auth cookies and adds debug logging
+ * Helper function to copy cookies between responses
+ * Simply copies all cookies as they are already set with correct domains
  */
-function copyCookiesWithDomains(
-  fromResponse: NextResponse,
-  toResponse: NextResponse,
-  domains: string[]
-) {
-  console.log('Copying cookies with domains:', domains)
+function copyCookies(fromResponse: NextResponse, toResponse: NextResponse) {
   const cookies = fromResponse.cookies.getAll()
-  console.log('Cookies to copy:', cookies.map(c => ({ name: c.name, domain: c.domain })))
+  console.log("Copying cookies from the ",cookies)
+  console.log('Copying cookies:', cookies.map(c => ({ 
+    name: c.name, 
+    domain: c.domain,
+    value: c.value ? 'exists' : 'empty'
+  })))
   
   cookies.forEach(cookie => {
-    if (cookie.name.startsWith('sb-')) {
-      // For auth cookies, set for all applicable domains
-      domains.forEach(domain => {
-        toResponse.cookies.set({
-          name: cookie.name,
-          value: cookie.value,
-          domain,
-          expires: cookie.expires,
-          httpOnly: cookie.httpOnly,
-          maxAge: cookie.maxAge,
-          path: cookie.path,
-          priority: cookie.priority,
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production',
-        })
-      })
-    } else {
-      // For non-auth cookies, copy as is
-      toResponse.cookies.set({
-        name: cookie.name,
-        value: cookie.value,
-        expires: cookie.expires,
-        httpOnly: cookie.httpOnly,
-        maxAge: cookie.maxAge,
-        path: cookie.path,
-        priority: cookie.priority,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-      })
-    }
+    toResponse.cookies.set(cookie)
   })
 }
 
@@ -109,24 +88,34 @@ export async function middleware(request: NextRequest) {
             }))
           },
           setAll(cookies) {
-            // Get domain settings once
-            const { domains } = getDomainSettings(hostname)
+            console.log('Supabase setting cookies:', cookies.map(c => c.name))
             
             cookies.forEach((cookie) => {
-              // For each auth cookie, we need to set it for all applicable domains
               if (cookie.name.startsWith('sb-')) {
-                domains.forEach(domain => {
-                  const cookieOptions = {
-                    name: cookie.name,
-                    value: cookie.value,
-                    sameSite: 'lax' as const,
-                    secure: process.env.NODE_ENV === 'production',
-                    path: '/',
-                    domain,
-                    maxAge: 60 * 60 * 24 * 7 // 7 days for auth cookies
-                  }
-                  // Only set on response, not request (avoid duplication)
-                  response.cookies.set(cookieOptions)
+                // For auth cookies, create two versions
+                const cookieOptions = {
+                  name: cookie.name,
+                  value: cookie.value,
+                  sameSite: 'lax' as const,
+                  secure: process.env.NODE_ENV === 'production',
+                  path: '/',
+                  maxAge: 60 * 60 * 24 * 7 // 7 days for auth cookies
+                }
+                
+                // Set cookie for specific domain if www
+                if (hostname.startsWith('www.')) {
+                  response.cookies.set({
+                    ...cookieOptions,
+                    domain: hostname
+                  })
+                }
+
+                console.log('Setting response cookies', response.cookies)
+                
+                // Always set cookie for root domain
+                response.cookies.set({
+                  ...cookieOptions,
+                  domain: hostname.includes('localhost') ? '.localhost' : '.2nd.exchange'
                 })
               } else {
                 // For non-auth cookies, just set them normally
@@ -145,10 +134,10 @@ export async function middleware(request: NextRequest) {
     )
 
     // Refresh session if available
-    const { data: { user }, error: sessionError } = await supabase.auth.getUser()
+    const sessionUpdate  = await updateSession(request)
     
-    if (sessionError) {
-      console.error('Error refreshing session in middleware:', sessionError)
+    if (!sessionUpdate) {
+      console.error('Error refreshing session in middleware:', sessionUpdate)
       // Continue execution as we can still handle routing without a valid session
     }
 
@@ -157,7 +146,7 @@ export async function middleware(request: NextRequest) {
       // Extract the username from the subdomain
       const username = hostname.split('.')[0]
       
-      // Skip processing for special subdomains like 'www'
+      // For www subdomain, return the main response
       if (username === 'www') {
         return response
       }
@@ -180,7 +169,7 @@ export async function middleware(request: NextRequest) {
         
         const rewriteResponse = NextResponse.rewrite(url)
         
-        copyCookiesWithDomains(response, rewriteResponse, domains)
+        copyCookies(response, rewriteResponse)
         
         return rewriteResponse
       } else {
@@ -188,34 +177,34 @@ export async function middleware(request: NextRequest) {
         url.pathname = '/404'
         const rewriteResponse = NextResponse.rewrite(url)
         
-        copyCookiesWithDomains(response, rewriteResponse, domains)
+        copyCookies(response, rewriteResponse)
         
         return rewriteResponse
       }
     }
     
     // For non-subdomain requests, check if user is authenticated and has no profile
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single()
+    // if (user) {
+    //   const { data: profile } = await supabase
+    //     .from('profiles')
+    //     .select('id')
+    //     .eq('id', user.id)
+    //     .single()
 
-      // If authenticated but no profile exists, redirect to profile creation
-      if (!profile) {
-        url.pathname = '/profile/create'
-        const redirectResponse = NextResponse.redirect(url)
-        copyCookiesWithDomains(response, redirectResponse, domains)
-        return redirectResponse
-      }
-    }
+    //   // If authenticated but no profile exists, redirect to profile creation
+    //   if (!profile) {
+    //     url.pathname = '/profile/create'
+    //     const redirectResponse = NextResponse.redirect(url)
+    //     copyCookies(response, redirectResponse)
+    //     return redirectResponse
+    //   }
+    // }
     
     // Return the response with auth session
     return response
   } catch (error) {
     console.error('Middleware error:', error)
-    // Return the original response if there's an error
+    // Return the original response
     return response
   }
 }
