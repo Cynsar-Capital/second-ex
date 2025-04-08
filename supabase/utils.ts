@@ -27,13 +27,13 @@ export const supabase =  createBrowserClient(supabaseUrl, supabaseKey, {
   //   storage: typeof window !== 'undefined' ? window.localStorage : undefined
   // },
   // // Keep these cookie options for non-auth related features
-  // cookieOptions: {
-  //   domain: COOKIE_DOMAIN,
-  //   maxAge: 3600 * 24 * 7, // 7 days
-  //   path: '/',
-  //   sameSite: 'lax',
-  //   secure: process.env.NODE_ENV === 'production',
-  // }
+  cookieOptions: {
+    domain: COOKIE_DOMAIN,
+    maxAge: 3600 * 24 * 7, // 7 days
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  }
 })
 
 // Auth helper functions
