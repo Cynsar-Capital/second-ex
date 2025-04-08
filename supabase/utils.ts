@@ -1,3 +1,4 @@
+
 import { createBrowserClient, createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -106,6 +107,7 @@ export const onAuthStateChange = (callback: (event: any, session: any) => void) 
 }
 
 export async function updateSession(request: NextRequest) {
+ 
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -138,7 +140,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
+    !request.nextUrl.pathname.startsWith('/') &&
     !request.nextUrl.pathname.startsWith('/auth')
   ) {
     // no user, potentially respond by redirecting the user to the login page
