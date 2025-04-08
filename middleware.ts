@@ -90,12 +90,16 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const { domains, isLocalhost, isSubdomain } = getDomainSettings(hostname)
 
+  // First get the session state
+  const sessionResponse = await updateSession(request)
+  const { data: { user } } = await supabase.auth.getUser()
+
   if (isSubdomain) {
     const username = hostname.split('.')[0]
     console.log('Processing subdomain request:', { username, hostname })
 
     if (username === 'www') {
-      return NextResponse.next()
+      return sessionResponse
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -107,37 +111,42 @@ export async function middleware(request: NextRequest) {
     if (profileError || !profile) {
       console.log('Profile not found:', { username, error: profileError })
       url.pathname = '/404'
-      return NextResponse.rewrite(url)
+      const response = NextResponse.rewrite(url)
+      // Copy session cookies
+      sessionResponse.cookies.getAll().forEach(cookie => {
+        response.cookies.set(cookie)
+      })
+      return response
     }
 
     console.log('Profile found:', { username, profileId: profile.id })
     url.pathname = '/profile'
     url.searchParams.set('username', username)
     
-    const rewriteResponse = NextResponse.rewrite(url)
-    // Before we copy cookies we check if the user has a valid auth 
-    const { data: user } = await supabase.auth.getUser();
-    console.log(user)
-    if (user.user === null){
-      // we are not copying anything 
-      console.log('We dont copy any cookie, since there is no user')
-    } else {
-      copyCookiesWithDomains(request, rewriteResponse, domains)
+    const response = NextResponse.rewrite(url)
+    
+    // Copy session cookies first
+    sessionResponse.cookies.getAll().forEach(cookie => {
+      response.cookies.set(cookie)
+    })
+
+    // Only set domain-specific cookies if user is authenticated
+    if (user !== null) {
+      copyCookiesWithDomains(request, response, domains)
     }
     
     console.log('Rewriting to profile with cookies:', { 
       pathname: url.pathname, 
-      cookies: rewriteResponse.cookies.getAll().map(c => ({ 
+      cookies: response.cookies.getAll().map(c => ({ 
         name: c.name, 
         domain: c.domain 
       }))
     })
     
-    return rewriteResponse
+    return response
   }
 
-  return await updateSession(request)
-  
+  return sessionResponse
 }
 
 export const config = {
