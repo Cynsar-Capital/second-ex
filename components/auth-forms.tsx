@@ -188,7 +188,7 @@ export function SignUpForm({ onSuccess, onToggle }: AuthFormProps): JSX.Element 
         setLoading(false);
         return;
       }
-
+      
       // Create or update profile with username
       const { error: updateError } = await supabase
         .from('profiles')

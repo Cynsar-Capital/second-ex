@@ -8,38 +8,92 @@ export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }
 
-// Helper function to determine domain settings
+/**
+ * Helper function to determine domain settings and cookie configuration
+ * Handles both production and local development environments
+ */
 function getDomainSettings(hostname: string) {
   const isLocalhost = hostname.includes('localhost') || hostname.includes('127.0.0.1')
   const isSubdomain = isLocalhost 
     ? hostname.split('.').length > 1 && !hostname.startsWith('www')
     : hostname.split('.').length > 2 && !hostname.startsWith('www')
 
+  // For local development, use .localhost for proper subdomain testing
+  const rootDomain = isLocalhost ? '.localhost' : '.2nd.exchange'
+  
+  // For subdomains in local dev, we need to handle both the subdomain cookie and root domain cookie
+  const domains = isLocalhost && isSubdomain 
+    ? [hostname, rootDomain]  // e.g. ['test.localhost', '.localhost']
+    : [rootDomain]            // e.g. ['.2nd.exchange']
+
   return {
     isLocalhost,
     isSubdomain,
-    // For localhost, don't set domain to allow cookies to work on both main and subdomains
-    // For production, use .2nd.exchange to work across all subdomains
-    domain: isLocalhost ? undefined : '.2nd.exchange',
+    domains,
     host: hostname
   }
+}
+
+/**
+ * Helper function to copy cookies from response to rewrite/redirect response
+ * Handles domain-specific cookie settings for auth cookies and adds debug logging
+ */
+function copyCookiesWithDomains(
+  fromResponse: NextResponse,
+  toResponse: NextResponse,
+  domains: string[]
+) {
+  console.log('Copying cookies with domains:', domains)
+  const cookies = fromResponse.cookies.getAll()
+  console.log('Cookies to copy:', cookies.map(c => ({ name: c.name, domain: c.domain })))
+  
+  cookies.forEach(cookie => {
+    if (cookie.name.startsWith('sb-')) {
+      // For auth cookies, set for all applicable domains
+      domains.forEach(domain => {
+        toResponse.cookies.set({
+          name: cookie.name,
+          value: cookie.value,
+          domain,
+          expires: cookie.expires,
+          httpOnly: cookie.httpOnly,
+          maxAge: cookie.maxAge,
+          path: cookie.path,
+          priority: cookie.priority,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+        })
+      })
+    } else {
+      // For non-auth cookies, copy as is
+      toResponse.cookies.set({
+        name: cookie.name,
+        value: cookie.value,
+        expires: cookie.expires,
+        httpOnly: cookie.httpOnly,
+        maxAge: cookie.maxAge,
+        path: cookie.path,
+        priority: cookie.priority,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      })
+    }
+  })
 }
 
 export async function middleware(request: NextRequest) {
   // Handle subdomain routing for usernames
   const url = request.nextUrl.clone()
   const hostname = request.headers.get('host') || ''
-  const { domain, isLocalhost, isSubdomain } = getDomainSettings(hostname)
+  const { domains, isLocalhost, isSubdomain } = getDomainSettings(hostname)
   
   
-  // Create a response object that we'll modify as needed
-  let response = NextResponse.next({
+  // Create a single response object that we'll reuse throughout the middleware
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
-
-  //await updateSession(request)
 
   try {
     // Initialize Supabase client with proper cookie handling
@@ -55,57 +109,48 @@ export async function middleware(request: NextRequest) {
             }))
           },
           setAll(cookies) {
+            // Get domain settings once
+            const { domains } = getDomainSettings(hostname)
+            
             cookies.forEach((cookie) => {
-              // Set cookie on both request and response
-              const cookieOptions = {
-                name: cookie.name,
-                value: cookie.value,
-                sameSite: 'lax' as const,
-                secure: process.env.NODE_ENV === 'production',
-                path: '/',
-                domain,
-                // Set longer expiry for auth cookies
-                maxAge: cookie.name.startsWith('sb-') 
-                  ? 60 * 60 * 24 * 7 // 7 days for auth cookies
-                  : undefined
+              // For each auth cookie, we need to set it for all applicable domains
+              if (cookie.name.startsWith('sb-')) {
+                domains.forEach(domain => {
+                  const cookieOptions = {
+                    name: cookie.name,
+                    value: cookie.value,
+                    sameSite: 'lax' as const,
+                    secure: process.env.NODE_ENV === 'production',
+                    path: '/',
+                    domain,
+                    maxAge: 60 * 60 * 24 * 7 // 7 days for auth cookies
+                  }
+                  // Only set on response, not request (avoid duplication)
+                  response.cookies.set(cookieOptions)
+                })
+              } else {
+                // For non-auth cookies, just set them normally
+                response.cookies.set({
+                  name: cookie.name,
+                  value: cookie.value,
+                  sameSite: 'lax' as const,
+                  secure: process.env.NODE_ENV === 'production',
+                  path: '/',
+                })
               }
-              request.cookies.set(cookieOptions)
-              response = NextResponse.next({
-                request: {
-                  headers: request.headers,
-                },
-              })
-              response.cookies.set(cookieOptions)
-              
             })
           },
         },
-        // auth: {
-        //   autoRefreshToken: true,
-        //   persistSession: true,
-        //   detectSessionInUrl: true,
-        //   flowType: 'pkce',
-        // },
-        // cookieOptions: {
-        //   secure: process.env.NODE_ENV === 'production',
-        //   sameSite: 'lax',
-        //   path: '/',
-        //   domain,
-        // },
       }
     )
 
     // Refresh session if available
     const { data: { user }, error: sessionError } = await supabase.auth.getUser()
     
-    // if (sessionError) {
-    //   console.log('Error refreshing session in middleware:', sessionError)
-    // } else {
-    //   console.log('Middleware session state:', user ? 'Authenticated' : 'Not authenticated')
-    //   if (user) {
-    //     console.log('Session user ID:', user.id)
-    //   }
-    // }
+    if (sessionError) {
+      console.error('Error refreshing session in middleware:', sessionError)
+      // Continue execution as we can still handle routing without a valid session
+    }
 
     // Handle subdomain routing
     if (isSubdomain) {
@@ -135,21 +180,7 @@ export async function middleware(request: NextRequest) {
         
         const rewriteResponse = NextResponse.rewrite(url)
         
-        // Copy all cookies from the original response
-        response.cookies.getAll().forEach(cookie => {
-          rewriteResponse.cookies.set({
-            name: cookie.name,
-            value: cookie.value,
-            domain: cookie.domain,
-            expires: cookie.expires,
-            httpOnly: cookie.httpOnly,
-            maxAge: cookie.maxAge,
-            path: cookie.path,
-            priority: cookie.priority,
-            sameSite: cookie.sameSite as 'lax' | 'strict' | 'none' | undefined,
-            secure: cookie.secure,
-          })
-        })
+        copyCookiesWithDomains(response, rewriteResponse, domains)
         
         return rewriteResponse
       } else {
@@ -157,21 +188,7 @@ export async function middleware(request: NextRequest) {
         url.pathname = '/404'
         const rewriteResponse = NextResponse.rewrite(url)
         
-        // Copy all cookies from the original response
-        response.cookies.getAll().forEach(cookie => {
-          rewriteResponse.cookies.set({
-            name: cookie.name,
-            value: cookie.value,
-            domain: cookie.domain,
-            expires: cookie.expires,
-            httpOnly: cookie.httpOnly,
-            maxAge: cookie.maxAge,
-            path: cookie.path,
-            priority: cookie.priority,
-            sameSite: cookie.sameSite as 'lax' | 'strict' | 'none' | undefined,
-            secure: cookie.secure,
-          })
-        })
+        copyCookiesWithDomains(response, rewriteResponse, domains)
         
         return rewriteResponse
       }
@@ -188,7 +205,9 @@ export async function middleware(request: NextRequest) {
       // If authenticated but no profile exists, redirect to profile creation
       if (!profile) {
         url.pathname = '/profile/create'
-        return NextResponse.redirect(url)
+        const redirectResponse = NextResponse.redirect(url)
+        copyCookiesWithDomains(response, redirectResponse, domains)
+        return redirectResponse
       }
     }
     
