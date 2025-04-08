@@ -129,7 +129,7 @@ export function ProfileDrawer({ isOwner, isLoggedIn, username }: ProfileDrawerPr
     try {
       const { error } = await supabase
         .from('profile_recommendations')
-        .update({ status: newStatus })
+        .update({ status: newStatus, is_public: true })
         .eq('id', recommendationId);
         
       if (error) throw error;
